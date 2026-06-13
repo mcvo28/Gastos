@@ -14,16 +14,13 @@
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
 html,body{height:100%;background:var(--bg);color:var(--text);font-family:'DM Sans',sans-serif;overscroll-behavior:none;}
 body{padding-top:var(--safe-top);}
-
-/* Tabs */
-.tabs{display:flex;background:var(--bg);border-bottom:1px solid #1e1e28;padding:0 20px;position:sticky;top:0;z-index:100;}
-.tab{flex:1;padding:14px 0;text-align:center;font-size:13px;font-weight:600;color:var(--muted);border-bottom:2px solid transparent;cursor:pointer;transition:all .15s;}
-.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
-
-/* Section */
+.tabs{display:flex;background:var(--bg);border-bottom:1px solid #1e1e28;padding:0;position:sticky;top:0;z-index:100;}
+.tab{flex:1;padding:10px 0 8px;text-align:center;cursor:pointer;transition:all .15s;border-bottom:2px solid transparent;display:flex;flex-direction:column;align-items:center;gap:3px;}
+.tab.active{border-bottom-color:var(--accent);}
+.tab-icon{font-size:20px;line-height:1;}
+.tab-label{font-size:11px;font-weight:600;color:var(--muted);}
+.tab.active .tab-label{color:var(--accent);}
 .section{display:none;}.section.active{display:block;}
-
-/* Header */
 .header{background:var(--bg);border-bottom:1px solid #1e1e28;padding:16px 20px 0;position:sticky;top:49px;z-index:99;}
 .title-row{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;}
 .title-main{font-family:'Playfair Display',serif;font-size:20px;font-weight:700;letter-spacing:-.5px;}
@@ -33,8 +30,6 @@ body{padding-top:var(--safe-top);}
 .pill:active{transform:scale(.95);}
 .btn-ai{background:#1e1e28;border:1px solid rgba(249,115,22,.25);color:var(--accent);padding:8px 13px;font-size:13px;}
 .btn-new{background:var(--accent);color:#fff;padding:8px 14px;font-size:13px;}
-
-/* Fatura nav */
 .fatura-nav{display:flex;align-items:center;gap:10px;margin-bottom:12px;}
 .nav-btn{background:var(--surface);border:1px solid var(--border);color:var(--muted);border-radius:8px;width:32px;height:32px;display:flex;align-items:center;justify-content:center;cursor:pointer;font-size:18px;flex-shrink:0;}
 .nav-btn:active{border-color:var(--accent);color:var(--accent);}
@@ -42,20 +37,14 @@ body{padding-top:var(--safe-top);}
 .fatura-label{flex:1;text-align:center;}
 .fatura-name{font-family:'Playfair Display',serif;font-size:16px;font-weight:700;}
 .fatura-range{font-size:11px;color:var(--muted);margin-top:2px;}
-
-/* Summaries */
 .summaries{display:flex;gap:8px;margin-bottom:12px;}
 .summary-card{flex:1;padding:11px;border-radius:14px;min-width:0;}
 .summary-label{font-size:11px;color:var(--muted);}
 .summary-val{font-family:'Playfair Display',serif;font-size:13px;font-weight:700;margin-top:3px;}
-
-/* Filters */
 .filters{display:flex;gap:8px;padding-bottom:12px;overflow-x:auto;scrollbar-width:none;}
 .filters::-webkit-scrollbar{display:none;}
 .filter-btn{padding:6px 14px;font-size:12px;white-space:nowrap;border:1px solid var(--border);background:#1e1e28;color:var(--muted);}
 .filter-btn.active{border:none;}
-
-/* List */
 .list{padding:16px 20px 100px;}
 .empty{text-align:center;padding:50px 0;color:#444;}
 .empty-icon{font-size:32px;margin-bottom:10px;}
@@ -74,8 +63,6 @@ body{padding-top:var(--safe-top);}
 .action-btn:active{opacity:1;}
 .fatura-total{text-align:right;color:var(--muted);font-size:12px;margin-top:-10px;margin-bottom:20px;}
 .fatura-total span{font-family:'Playfair Display',serif;color:var(--text);font-size:15px;font-weight:700;}
-
-/* Parcelas */
 .parcelas-header{background:var(--bg);border-bottom:1px solid #1e1e28;padding:16px 20px;position:sticky;top:49px;z-index:99;}
 .parcelas-total-card{background:#a78bfa18;border:1px solid #a78bfa40;border-radius:16px;padding:16px;margin-bottom:16px;display:flex;justify-content:space-between;align-items:center;}
 .parcelas-total-label{font-size:13px;color:var(--muted);}
@@ -84,8 +71,6 @@ body{padding-top:var(--safe-top);}
 .parcela-row:last-child{border-bottom:none;}
 .parcela-name{flex:1;font-size:14px;font-weight:500;}
 .parcela-amount{font-family:'Playfair Display',serif;font-size:15px;font-weight:700;color:#a78bfa;}
-
-/* Resumo */
 .resumo-header{background:var(--bg);border-bottom:1px solid #1e1e28;padding:16px 20px;position:sticky;top:49px;z-index:99;}
 .resumo-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px;}
 .resumo-card-title{font-size:12px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;}
@@ -96,8 +81,6 @@ body{padding-top:var(--safe-top);}
 .resumo-total{background:var(--accent);border-radius:16px;padding:16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
 .resumo-total-label{font-size:13px;color:rgba(255,255,255,.8);}
 .resumo-total-val{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#fff;}
-
-/* Modal */
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center;z-index:200;backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s;}
 .overlay.open{opacity:1;pointer-events:all;}
 .modal{background:var(--surface);border-radius:24px 24px 0 0;padding:24px 20px;padding-bottom:calc(24px + var(--safe-bottom));width:100%;max-width:480px;border:1px solid var(--border);border-bottom:none;transform:translateY(40px);transition:transform .25s;}
@@ -117,16 +100,12 @@ textarea.field{resize:none;line-height:1.5;}
 </style>
 </head>
 <body>
-
-<!-- Tabs -->
 <div class="tabs">
-  <div class="tab active" onclick="switchTab('alimentacao')">🍽️ Alimentação</div>
-  <div class="tab" onclick="switchTab('transporte')">🚗 Transporte</div>
-  <div class="tab" onclick="switchTab('parcelas')">💳 Parcelas</div>
-  <div class="tab" onclick="switchTab('resumo')">📊 Resumo</div>
+  <div class="tab active" onclick="switchTab('alimentacao')"><span class="tab-icon">🍽️</span><span class="tab-label">Alimentação</span></div>
+  <div class="tab" onclick="switchTab('transporte')"><span class="tab-icon">🚗</span><span class="tab-label">Transporte</span></div>
+  <div class="tab" onclick="switchTab('parcelas')"><span class="tab-icon">💳</span><span class="tab-label">Parcelas</span></div>
+  <div class="tab" onclick="switchTab('resumo')"><span class="tab-icon">📊</span><span class="tab-label">Resumo</span></div>
 </div>
-
-<!-- ═══════════════════════ ALIMENTAÇÃO ═══════════════════════ -->
 <div class="section active" id="sec-alimentacao">
   <div class="header">
     <div class="title-row">
@@ -138,10 +117,7 @@ textarea.field{resize:none;line-height:1.5;}
     </div>
     <div class="fatura-nav">
       <button class="nav-btn" id="alim-prev" onclick="changeFatura('alimentacao',-1)">‹</button>
-      <div class="fatura-label">
-        <div class="fatura-name" id="alim-fatura-name">—</div>
-        <div class="fatura-range" id="alim-fatura-range">—</div>
-      </div>
+      <div class="fatura-label"><div class="fatura-name" id="alim-fatura-name">—</div><div class="fatura-range" id="alim-fatura-range">—</div></div>
       <button class="nav-btn" id="alim-next" onclick="changeFatura('alimentacao',1)">›</button>
     </div>
     <div class="summaries" id="alim-summaries"></div>
@@ -149,8 +125,6 @@ textarea.field{resize:none;line-height:1.5;}
   </div>
   <div class="list" id="alim-list"></div>
 </div>
-
-<!-- ═══════════════════════ TRANSPORTE ═══════════════════════ -->
 <div class="section" id="sec-transporte">
   <div class="header">
     <div class="title-row">
@@ -162,10 +136,7 @@ textarea.field{resize:none;line-height:1.5;}
     </div>
     <div class="fatura-nav">
       <button class="nav-btn" id="transp-prev" onclick="changeFatura('transporte',-1)">‹</button>
-      <div class="fatura-label">
-        <div class="fatura-name" id="transp-fatura-name">—</div>
-        <div class="fatura-range" id="transp-fatura-range">—</div>
-      </div>
+      <div class="fatura-label"><div class="fatura-name" id="transp-fatura-name">—</div><div class="fatura-range" id="transp-fatura-range">—</div></div>
       <button class="nav-btn" id="transp-next" onclick="changeFatura('transporte',1)">›</button>
     </div>
     <div class="summaries" id="transp-summaries"></div>
@@ -173,37 +144,25 @@ textarea.field{resize:none;line-height:1.5;}
   </div>
   <div class="list" id="transp-list"></div>
 </div>
-
-<!-- ═══════════════════════ PARCELAS ═══════════════════════ -->
 <div class="section" id="sec-parcelas">
   <div class="parcelas-header">
     <div class="title-row">
       <div><div class="title-main">Parcelas</div><div class="title-sub">Fixas mensais</div></div>
-      <div class="btn-row">
-        <button class="pill btn-new" onclick="openParcelaForm()">+ Nova</button>
-      </div>
+      <div class="btn-row"><button class="pill btn-new" onclick="openParcelaForm()">+ Nova</button></div>
     </div>
   </div>
   <div class="list" id="parcelas-list"></div>
 </div>
-
-<!-- ═══════════════════════ RESUMO ═══════════════════════ -->
 <div class="section" id="sec-resumo">
   <div class="resumo-header">
     <div class="fatura-nav">
       <button class="nav-btn" id="resumo-prev" onclick="changeFatura('resumo',-1)">‹</button>
-      <div class="fatura-label">
-        <div class="fatura-name" id="resumo-fatura-name">—</div>
-        <div class="fatura-range" id="resumo-fatura-range">—</div>
-      </div>
+      <div class="fatura-label"><div class="fatura-name" id="resumo-fatura-name">—</div><div class="fatura-range" id="resumo-fatura-range">—</div></div>
       <button class="nav-btn" id="resumo-next" onclick="changeFatura('resumo',1)">›</button>
     </div>
   </div>
   <div class="list" id="resumo-list"></div>
 </div>
-
-<!-- ═══════════════════════ MODAIS ═══════════════════════ -->
-<!-- AI -->
 <div class="overlay" id="overlay-ai" onclick="closeAi(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title">Lançar gastos</div>
@@ -216,23 +175,19 @@ textarea.field{resize:none;line-height:1.5;}
     </div>
   </div>
 </div>
-
-<!-- Form alimentação/transporte -->
 <div class="overlay" id="overlay-form" onclick="closeForm(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title" id="form-title">Novo gasto</div>
     <input class="field" id="f-name" placeholder="Nome do local" oninput="autoCategory()" />
     <input class="field" id="f-amount" type="number" step="0.01" min="0" placeholder="Valor (R$)" />
     <div class="cat-row" id="f-cat-row"></div>
-    <input class="field" id="f-date" type="date" />
+    <input class="field" id="f-date" type="date" style="-webkit-appearance:none;color-scheme:dark;" />
     <div class="modal-btns">
       <button class="pill btn-cancel" onclick="closeForm()">Cancelar</button>
       <button class="pill btn-confirm" onclick="handleSubmit()">Salvar</button>
     </div>
   </div>
 </div>
-
-<!-- Form parcela -->
 <div class="overlay" id="overlay-parcela" onclick="closeParcela(event)">
   <div class="modal" onclick="event.stopPropagation()">
     <div class="modal-title" id="parcela-form-title">Nova parcela</div>
@@ -244,35 +199,26 @@ textarea.field{resize:none;line-height:1.5;}
     </div>
   </div>
 </div>
-
 <script>
-// ── Config ────────────────────────────────────────────────────────────────────
-const CLOSING_DAY = 22;
-const MONTHS = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
-
-const ALIM_CATS = {
-  feira:       {label:'Feira',      emoji:'🛒',color:'#4ade80',stores:['pda','carrefour','mambo','vila das frutas','extra']},
-  restaurante: {label:'Restaurante',emoji:'🍽️',color:'#f97316',stores:[]},
-  comidafora:  {label:'Comida Fora',emoji:'🍔',color:'#fb923c',stores:[]},
+const CLOSING_DAY=22;
+const MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+const ALIM_CATS={
+  mercado:{label:'Mercado',emoji:'🛒',color:'#4ade80',stores:['pda','carrefour','mambo','vila das frutas','extra','mercado']},
+  restaurante:{label:'Restaurante',emoji:'🍽️',color:'#f97316',stores:[]},
+  comidafora:{label:'Comida Fora',emoji:'🍔',color:'#fb923c',stores:[]},
 };
-const TRANSP_CATS = {
-  uber:  {label:'Uber', emoji:'⚫',color:'#a3a3a3',stores:['uber']},
-  turbi: {label:'Turbi',emoji:'🟢',color:'#4ade80',stores:['turbi']},
-  noventa9: {label:'99',emoji:'🟡',color:'#facc15',stores:['99']},
+const TRANSP_CATS={
+  uber:{label:'Uber',emoji:'⚫',color:'#a3a3a3',stores:['uber']},
+  turbi:{label:'Turbi',emoji:'🟢',color:'#4ade80',stores:['turbi']},
+  noventa9:{label:'99',emoji:'🟡',color:'#facc15',stores:['99']},
 };
-
-function detectAlimCat(name){const l=name.toLowerCase();for(const s of ALIM_CATS.feira.stores){if(l.includes(s))return'feira';}return'restaurante';}
+function detectAlimCat(name){const l=name.toLowerCase();for(const s of ALIM_CATS.mercado.stores){if(l.includes(s))return'mercado';}return'restaurante';}
 function detectTranspCat(name){const l=name.toLowerCase();if(l.includes('turbi'))return'turbi';if(l.includes('99'))return'noventa9';return'uber';}
-
-// ── Storage ───────────────────────────────────────────────────────────────────
 function load(key){try{return JSON.parse(localStorage.getItem(key))||[];}catch{return[];}}
 function save(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catch{}}
-
-let alimExpenses   = load('gastos-alim-v1');
-let transpExpenses = load('gastos-transp-v1');
-let parcelas       = load('gastos-parcelas-v1');
-
-// ── Faturas ───────────────────────────────────────────────────────────────────
+let alimExpenses=load('gastos-alim-v1');
+let transpExpenses=load('gastos-transp-v1');
+let parcelas=load('gastos-parcelas-v1');
 function generateFaturas(count=24){
   const result=[];const now=new Date();let sy=now.getFullYear(),sm=now.getMonth();
   if(now.getDate()<CLOSING_DAY){sm--;if(sm<0){sm=11;sy--;}}
@@ -290,13 +236,9 @@ function generateFaturas(count=24){
 const FATURAS=generateFaturas();
 function today(){return new Date().toISOString().slice(0,10);}
 function getCurrentFaturaId(){const t=today();for(const f of FATURAS){if(t>=f.start&&t<=f.end)return f.id;}return FATURAS[Math.floor(FATURAS.length/2)].id;}
-
 let faturaIds={alimentacao:getCurrentFaturaId(),transporte:getCurrentFaturaId(),resumo:getCurrentFaturaId()};
 let catFilters={alimentacao:'all',transporte:'all'};
-
-function relevantFaturas(expenses){
-  return FATURAS.filter(f=>expenses.some(e=>e.date>=f.start&&e.date<=f.end)||f.id===getCurrentFaturaId()).sort((a,b)=>b.start.localeCompare(a.start));
-}
+function relevantFaturas(expenses){return FATURAS.filter(f=>expenses.some(e=>e.date>=f.start&&e.date<=f.end)||f.id===getCurrentFaturaId()).sort((a,b)=>b.start.localeCompare(a.start));}
 function changeFatura(section,dir){
   const expenses=section==='transporte'?transpExpenses:alimExpenses;
   const rel=relevantFaturas(expenses);
@@ -305,50 +247,37 @@ function changeFatura(section,dir){
   const next=idx-dir;
   if(next>=0&&next<rel.length){faturaIds[key]=rel[next].id;renderSection(section);}
 }
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
 function fmt(n){return n.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});}
 function fmtDate(d){return new Date(d+'T12:00:00').toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'});}
 function fmtShort(d){const dt=new Date(d+'T12:00:00');const m=['jan','fev','mar','abr','mai','jun','jul','ago','set','out','nov','dez'];return`${dt.getDate()} ${m[dt.getMonth()]}`;}
-
-// ── Tab switching ─────────────────────────────────────────────────────────────
 let currentTab='alimentacao';
 function switchTab(tab){
   document.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('active',['alimentacao','transporte','parcelas','resumo'][i]===tab);});
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('sec-'+tab).classList.add('active');
-  currentTab=tab;
-  renderSection(tab);
+  currentTab=tab;renderSection(tab);
 }
-
-// ── Render ────────────────────────────────────────────────────────────────────
 function renderSection(section){
   if(section==='alimentacao')renderExpenses('alimentacao',alimExpenses,ALIM_CATS);
   else if(section==='transporte')renderExpenses('transporte',transpExpenses,TRANSP_CATS);
   else if(section==='parcelas')renderParcelas();
   else if(section==='resumo')renderResumo();
 }
-
 function renderExpenses(section,expenses,cats){
   const prefix=section==='alimentacao'?'alim':'transp';
   const fat=FATURAS.find(f=>f.id===faturaIds[section])||FATURAS[0];
   const rel=relevantFaturas(expenses);
   const idx=rel.findIndex(f=>f.id===faturaIds[section]);
-
   document.getElementById(prefix+'-fatura-name').textContent=fat.label;
   document.getElementById(prefix+'-fatura-range').textContent=`${fmtShort(fat.start)} → ${fmtShort(fat.end)}`;
   document.getElementById(prefix+'-prev').disabled=idx>=rel.length-1;
   document.getElementById(prefix+'-next').disabled=idx<=0;
-
   const catFilter=catFilters[section];
   const filtered=expenses.filter(e=>e.date>=fat.start&&e.date<=fat.end&&(catFilter==='all'||e.category===catFilter));
   const totals={};filtered.forEach(e=>{totals[e.category]=(totals[e.category]||0)+e.amount;totals.all=(totals.all||0)+e.amount;});
-
   document.getElementById(prefix+'-summaries').innerHTML=Object.entries(cats).map(([k,c])=>`<div class="summary-card" style="background:${c.color}18;border:1px solid ${c.color}40"><div class="summary-label">${c.emoji} ${c.label}</div><div class="summary-val" style="color:${c.color}">${fmt(totals[k]||0)}</div></div>`).join('');
-
   const allF=[['all','Todos','#f0ede8'],...Object.entries(cats).map(([k,v])=>[k,v.label,v.color])];
   document.getElementById(prefix+'-filters').innerHTML=allF.map(([k,l,c])=>`<button class="pill filter-btn${catFilter===k?' active':''}" style="${catFilter===k?`background:${c};color:${k==='all'?'#0f0f13':'#fff'};border:none`:''}" onclick="setFilter('${section}','${k}')">${l}</button>`).join('');
-
   const grouped={};filtered.forEach(e=>{if(!grouped[e.date])grouped[e.date]=[];grouped[e.date].push(e);});
   const dates=Object.keys(grouped).sort((a,b)=>b.localeCompare(a));
   let html='';
@@ -364,19 +293,13 @@ function renderExpenses(section,expenses,cats){
   }
   document.getElementById(section==='alimentacao'?'alim-list':'transp-list').innerHTML=html;
 }
-
 function renderParcelas(){
   const total=parcelas.reduce((s,p)=>s+p.amount,0);
   let html=`<div class="parcelas-total-card"><div><div class="parcelas-total-label">Total mensal em parcelas</div></div><div class="parcelas-total-val">${fmt(total)}</div></div>`;
   if(!parcelas.length){html+=`<div class="empty"><div class="empty-icon">💳</div>Nenhuma parcela cadastrada.</div>`;}
-  else{
-    html+=`<div class="day-group">`;
-    parcelas.forEach(p=>{html+=`<div class="parcela-row"><div class="parcela-name">💳 ${p.name}</div><div class="parcela-amount">${fmt(p.amount)}</div><button class="action-btn" onclick="editParcela('${p.id}')">✏️</button><button class="action-btn" onclick="deleteParcela('${p.id}')">🗑️</button></div>`;});
-    html+=`</div>`;
-  }
+  else{html+=`<div class="day-group">`;parcelas.forEach(p=>{html+=`<div class="parcela-row"><div class="parcela-name">💳 ${p.name}</div><div class="parcela-amount">${fmt(p.amount)}</div><button class="action-btn" onclick="editParcela('${p.id}')">✏️</button><button class="action-btn" onclick="deleteParcela('${p.id}')">🗑️</button></div>`;});html+=`</div>`;}
   document.getElementById('parcelas-list').innerHTML=html;
 }
-
 function renderResumo(){
   const fat=FATURAS.find(f=>f.id===faturaIds.resumo)||FATURAS[0];
   const rel=relevantFaturas([...alimExpenses,...transpExpenses]);
@@ -385,41 +308,30 @@ function renderResumo(){
   document.getElementById('resumo-fatura-range').textContent=`${fmtShort(fat.start)} → ${fmtShort(fat.end)}`;
   document.getElementById('resumo-prev').disabled=idx>=rel.length-1;
   document.getElementById('resumo-next').disabled=idx<=0;
-
   const alimF=alimExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
   const transpF=transpExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
   const alimTot=alimF.reduce((s,e)=>s+e.amount,0);
   const transpTot=transpF.reduce((s,e)=>s+e.amount,0);
   const parcelaTot=parcelas.reduce((s,p)=>s+p.amount,0);
   const grandTotal=alimTot+transpTot+parcelaTot;
-
   const alimByCat={};alimF.forEach(e=>{alimByCat[e.category]=(alimByCat[e.category]||0)+e.amount;});
   const transpByCat={};transpF.forEach(e=>{transpByCat[e.category]=(transpByCat[e.category]||0)+e.amount;});
-
   let html=`<div class="resumo-total"><div class="resumo-total-label">Total geral da fatura</div><div class="resumo-total-val">${fmt(grandTotal)}</div></div>`;
-
   html+=`<div class="resumo-card"><div class="resumo-card-title">🍽️ Alimentação — ${fmt(alimTot)}</div>`;
   Object.entries(ALIM_CATS).forEach(([k,c])=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${c.emoji} ${c.label}</span><span class="resumo-row-val" style="color:${c.color}">${fmt(alimByCat[k]||0)}</span></div>`;});
   html+=`</div>`;
-
   html+=`<div class="resumo-card"><div class="resumo-card-title">🚗 Transporte — ${fmt(transpTot)}</div>`;
   Object.entries(TRANSP_CATS).forEach(([k,c])=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${c.emoji} ${c.label}</span><span class="resumo-row-val" style="color:${c.color}">${fmt(transpByCat[k]||0)}</span></div>`;});
   html+=`</div>`;
-
   html+=`<div class="resumo-card"><div class="resumo-card-title">💳 Parcelas — ${fmt(parcelaTot)}</div>`;
   if(!parcelas.length){html+=`<div class="resumo-row"><span class="resumo-row-label" style="color:#555">Nenhuma parcela cadastrada</span></div>`;}
   else{parcelas.forEach(p=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${p.name}</span><span class="resumo-row-val" style="color:#a78bfa">${fmt(p.amount)}</span></div>`;});}
   html+=`</div>`;
-
   document.getElementById('resumo-list').innerHTML=html;
 }
-
 function setFilter(section,f){catFilters[section]=f;renderSection(section);}
-
-// ── Form ──────────────────────────────────────────────────────────────────────
 let formSection='alimentacao';
 let editId=null;
-
 function openForm(section,exp=null){
   formSection=section;editId=exp?exp.id:null;
   const cats=section==='alimentacao'?ALIM_CATS:TRANSP_CATS;
@@ -427,36 +339,25 @@ function openForm(section,exp=null){
   document.getElementById('f-name').value=exp?exp.name:'';
   document.getElementById('f-amount').value=exp?exp.amount:'';
   document.getElementById('f-date').value=exp?exp.date:today();
-  const currentCat=exp?exp.category:Object.keys(cats)[0];
-  renderCatRow(cats,currentCat);
+  renderCatRow(cats,exp?exp.category:Object.keys(cats)[0]);
   document.getElementById('overlay-form').classList.add('open');
 }
-
 function renderCatRow(cats,selected){
   document.getElementById('f-cat-row').innerHTML=Object.entries(cats).map(([k,c])=>`<button class="cat-btn${selected===k?' active':''}" onclick="selectCat('${k}',this)">${c.emoji} ${c.label}</button>`).join('');
 }
-
-function selectCat(key,btn){
-  document.querySelectorAll('#f-cat-row .cat-btn').forEach(b=>b.classList.remove('active'));
-  btn.classList.add('active');
-}
-
+function selectCat(key,btn){document.querySelectorAll('#f-cat-row .cat-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
 function getSelectedCat(){
   const active=document.querySelector('#f-cat-row .cat-btn.active');
   if(!active)return Object.keys(formSection==='alimentacao'?ALIM_CATS:TRANSP_CATS)[0];
   const cats=formSection==='alimentacao'?ALIM_CATS:TRANSP_CATS;
-  return Object.keys(cats).find(k=>{const c=cats[k];return active.textContent.includes(c.label);}) || Object.keys(cats)[0];
+  return Object.keys(cats).find(k=>active.textContent.includes(cats[k].label))||Object.keys(cats)[0];
 }
-
 function autoCategory(){
   const name=document.getElementById('f-name').value;
   const cats=formSection==='alimentacao'?ALIM_CATS:TRANSP_CATS;
-  const detected=formSection==='alimentacao'?detectAlimCat(name):detectTranspCat(name);
-  renderCatRow(cats,detected);
+  renderCatRow(cats,formSection==='alimentacao'?detectAlimCat(name):detectTranspCat(name));
 }
-
 function closeForm(e){if(!e||e.target===document.getElementById('overlay-form'))document.getElementById('overlay-form').classList.remove('open');}
-
 function handleSubmit(){
   const name=document.getElementById('f-name').value.trim();
   const amount=parseFloat(document.getElementById('f-amount').value);
@@ -464,34 +365,19 @@ function handleSubmit(){
   const category=getSelectedCat();
   if(!name||!amount||!date)return;
   const entry={id:editId||String(Date.now()),name,amount,category,date};
-  if(formSection==='alimentacao'){
-    if(editId)alimExpenses=alimExpenses.map(e=>e.id===editId?entry:e);
-    else alimExpenses.push(entry);
-    save('gastos-alim-v1',alimExpenses);
-  } else {
-    if(editId)transpExpenses=transpExpenses.map(e=>e.id===editId?entry:e);
-    else transpExpenses.push(entry);
-    save('gastos-transp-v1',transpExpenses);
-  }
+  if(formSection==='alimentacao'){if(editId)alimExpenses=alimExpenses.map(e=>e.id===editId?entry:e);else alimExpenses.push(entry);save('gastos-alim-v1',alimExpenses);}
+  else{if(editId)transpExpenses=transpExpenses.map(e=>e.id===editId?entry:e);else transpExpenses.push(entry);save('gastos-transp-v1',transpExpenses);}
   const match=FATURAS.find(f=>date>=f.start&&date<=f.end);
   if(match)faturaIds[formSection]=match.id;
   document.getElementById('overlay-form').classList.remove('open');
   renderSection(formSection);
 }
-
-function editExpense(section,id){
-  const expenses=section==='alimentacao'?alimExpenses:transpExpenses;
-  const exp=expenses.find(e=>e.id===id);
-  if(exp)openForm(section,exp);
-}
-
+function editExpense(section,id){const expenses=section==='alimentacao'?alimExpenses:transpExpenses;const exp=expenses.find(e=>e.id===id);if(exp)openForm(section,exp);}
 function deleteExpense(section,id){
   if(section==='alimentacao'){alimExpenses=alimExpenses.filter(e=>e.id!==id);save('gastos-alim-v1',alimExpenses);}
   else{transpExpenses=transpExpenses.filter(e=>e.id!==id);save('gastos-transp-v1',transpExpenses);}
   renderSection(section);
 }
-
-// ── Parcelas ──────────────────────────────────────────────────────────────────
 let editParcelaId=null;
 function openParcelaForm(p=null){
   editParcelaId=p?p.id:null;
@@ -506,25 +392,16 @@ function handleParcelaSubmit(){
   const amount=parseFloat(document.getElementById('p-amount').value);
   if(!name||!amount)return;
   const entry={id:editParcelaId||String(Date.now()),name,amount};
-  if(editParcelaId)parcelas=parcelas.map(p=>p.id===editParcelaId?entry:p);
-  else parcelas.push(entry);
+  if(editParcelaId)parcelas=parcelas.map(p=>p.id===editParcelaId?entry:p);else parcelas.push(entry);
   save('gastos-parcelas-v1',parcelas);
   document.getElementById('overlay-parcela').classList.remove('open');
   renderParcelas();
 }
 function editParcela(id){const p=parcelas.find(p=>p.id===id);if(p)openParcelaForm(p);}
 function deleteParcela(id){parcelas=parcelas.filter(p=>p.id!==id);save('gastos-parcelas-v1',parcelas);renderParcelas();}
-
-// ── AI / Parser ───────────────────────────────────────────────────────────────
 let aiSection='alimentacao';
-function openAi(section){
-  aiSection=section;
-  document.getElementById('ai-input').value='';
-  document.getElementById('ai-error').style.display='none';
-  document.getElementById('overlay-ai').classList.add('open');
-}
+function openAi(section){aiSection=section;document.getElementById('ai-input').value='';document.getElementById('ai-error').style.display='none';document.getElementById('overlay-ai').classList.add('open');}
 function closeAi(e){if(!e||e.target===document.getElementById('overlay-ai'))document.getElementById('overlay-ai').classList.remove('open');}
-
 function parseInput(text,section){
   const yesterday=new Date(Date.now()-86400000).toISOString().slice(0,10);
   const results=[];
@@ -537,12 +414,10 @@ function parseInput(text,section){
     if(dm){const d=dm[1].padStart(2,'0'),mo=dm[2].padStart(2,'0');const y=dm[3]?(dm[3].length===2?'20'+dm[3]:dm[3]):today().slice(0,4);date=`${y}-${mo}-${d}`;}
     let name=line.replace(/\d{1,6}[.,]\d{2}/,'').replace(/[-–:,|]+$/,'').replace(/^[-–:,|]+/,'').replace(/ontem/gi,'').replace(/\d{1,2}\/\d{1,2}(\/\d{2,4})?/g,'').replace(/[-–]/g,'').trim();
     if(!name)continue;
-    const category=section==='alimentacao'?detectAlimCat(name):detectTranspCat(name);
-    results.push({id:String(Date.now()+Math.random()),name,amount,date,category});
+    results.push({id:String(Date.now()+Math.random()),name,amount,date,category:section==='alimentacao'?detectAlimCat(name):detectTranspCat(name)});
   }
   return results;
 }
-
 function handleAiImport(){
   const text=document.getElementById('ai-input').value;
   const errEl=document.getElementById('ai-error');
@@ -555,8 +430,6 @@ function handleAiImport(){
   document.getElementById('overlay-ai').classList.remove('open');
   renderSection(aiSection);
 }
-
-// ── Init ──────────────────────────────────────────────────────────────────────
 document.getElementById('f-date').value=today();
 renderSection('alimentacao');
 </script>
