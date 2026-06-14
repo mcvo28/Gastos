@@ -81,6 +81,13 @@ body{padding-top:var(--safe-top);}
 .resumo-total{background:var(--accent);border-radius:16px;padding:16px;display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;}
 .resumo-total-label{font-size:13px;color:rgba(255,255,255,.8);}
 .resumo-total-val{font-family:'Playfair Display',serif;font-size:22px;font-weight:700;color:#fff;}
+.backup-card{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:16px;margin-bottom:12px;}
+.backup-title{font-size:12px;color:var(--muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;}
+.backup-desc{font-size:13px;color:#888;line-height:1.6;margin-bottom:12px;}
+.backup-btns{display:flex;gap:10px;}
+.backup-btn{flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:600;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;}
+.backup-btn:active{transform:scale(.98);}
+.backup-btn.primary{background:var(--accent);border:none;color:#fff;}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center;z-index:200;backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s;}
 .overlay.open{opacity:1;pointer-events:all;}
 .modal{background:var(--surface);border-radius:24px 24px 0 0;padding:24px 20px;padding-bottom:calc(24px + var(--safe-bottom));width:100%;max-width:480px;border:1px solid var(--border);border-bottom:none;transform:translateY(40px);transition:transform .25s;}
@@ -97,6 +104,7 @@ textarea.field{resize:none;line-height:1.5;}
 .cat-row{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
 .cat-btn{flex:1;min-width:80px;padding:9px 6px;border-radius:10px;border:1px solid var(--border);background:var(--bg);color:var(--muted);font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;text-align:center;}
 .cat-btn.active{border-color:var(--accent);background:rgba(249,115,22,.1);color:var(--accent);}
+.backup-text{width:100%;height:160px;background:var(--bg);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:11px;font-size:11px;font-family:monospace;margin-bottom:10px;resize:none;}
 </style>
 </head>
 <body>
@@ -199,11 +207,23 @@ textarea.field{resize:none;line-height:1.5;}
     </div>
   </div>
 </div>
+<div class="overlay" id="overlay-backup" onclick="closeBackup(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-title" id="backup-title">Backup</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6" id="backup-desc"></p>
+    <textarea class="backup-text" id="backup-text" placeholder="Cole aqui o backup para restaurar"></textarea>
+    <div class="error-msg" id="backup-error" style="display:none"></div>
+    <div class="modal-btns">
+      <button class="pill btn-cancel" onclick="closeBackup()">Fechar</button>
+      <button class="pill btn-confirm" id="backup-action-btn" onclick="handleBackupAction()">Copiar</button>
+    </div>
+  </div>
+</div>
 <script>
 const CLOSING_DAY=22;
 const MONTHS=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 const ALIM_CATS={
-  mercado:{label:'Mercado',emoji:'🛒',color:'#4ade80',stores:['pda','carrefour','mambo','vila das frutas','extra','mercado']},
+  feira:{label:'Mercado',emoji:'🛒',color:'#4ade80',stores:['pda','carrefour','mambo','vila das frutas','extra','mercado']},
   restaurante:{label:'Restaurante',emoji:'🍽️',color:'#f97316',stores:[]},
   comidafora:{label:'Comida Fora',emoji:'🍔',color:'#fb923c',stores:[]},
 };
@@ -212,7 +232,7 @@ const TRANSP_CATS={
   turbi:{label:'Turbi',emoji:'🟢',color:'#4ade80',stores:['turbi']},
   noventa9:{label:'99',emoji:'🟡',color:'#facc15',stores:['99']},
 };
-function detectAlimCat(name){const l=name.toLowerCase();for(const s of ALIM_CATS.mercado.stores){if(l.includes(s))return'mercado';}return'restaurante';}
+function detectAlimCat(name){const l=name.toLowerCase();for(const s of ALIM_CATS.feira.stores){if(l.includes(s))return'feira';}return'restaurante';}
 function detectTranspCat(name){const l=name.toLowerCase();if(l.includes('turbi'))return'turbi';if(l.includes('99'))return'noventa9';return'uber';}
 function load(key){try{return JSON.parse(localStorage.getItem(key))||[];}catch{return[];}}
 function save(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catch{}}
@@ -327,6 +347,7 @@ function renderResumo(){
   if(!parcelas.length){html+=`<div class="resumo-row"><span class="resumo-row-label" style="color:#555">Nenhuma parcela cadastrada</span></div>`;}
   else{parcelas.forEach(p=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${p.name}</span><span class="resumo-row-val" style="color:#a78bfa">${fmt(p.amount)}</span></div>`;});}
   html+=`</div>`;
+  html+=`<div class="backup-card"><div class="backup-title">💾 Backup dos dados</div><div class="backup-desc">Guarde seus dados em texto (cole nas Notas) para restaurar caso o Safari limpe o armazenamento.</div><div class="backup-btns"><button class="backup-btn" onclick="openBackup('export')">Exportar</button><button class="backup-btn primary" onclick="openBackup('import')">Importar</button></div></div>`;
   document.getElementById('resumo-list').innerHTML=html;
 }
 function setFilter(section,f){catFilters[section]=f;renderSection(section);}
@@ -399,6 +420,56 @@ function handleParcelaSubmit(){
 }
 function editParcela(id){const p=parcelas.find(p=>p.id===id);if(p)openParcelaForm(p);}
 function deleteParcela(id){parcelas=parcelas.filter(p=>p.id!==id);save('gastos-parcelas-v1',parcelas);renderParcelas();}
+let backupMode='export';
+function openBackup(mode){
+  backupMode=mode;
+  const ta=document.getElementById('backup-text');
+  const title=document.getElementById('backup-title');
+  const desc=document.getElementById('backup-desc');
+  const btn=document.getElementById('backup-action-btn');
+  document.getElementById('backup-error').style.display='none';
+  if(mode==='export'){
+    title.textContent='Exportar backup';
+    desc.textContent='Copie este texto e cole num app de Notas. Para restaurar depois, volte aqui e use "Importar".';
+    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,parcelas:parcelas});
+    ta.readOnly=true;
+    btn.textContent='Copiar';
+  } else {
+    title.textContent='Importar backup';
+    desc.textContent='Cole abaixo o texto do backup salvo anteriormente.';
+    ta.value='';
+    ta.readOnly=false;
+    btn.textContent='Restaurar';
+  }
+  document.getElementById('overlay-backup').classList.add('open');
+  if(mode==='import') setTimeout(()=>ta.focus(),300);
+}
+function closeBackup(e){if(!e||e.target===document.getElementById('overlay-backup'))document.getElementById('overlay-backup').classList.remove('open');}
+function handleBackupAction(){
+  const ta=document.getElementById('backup-text');
+  const errEl=document.getElementById('backup-error');
+  if(backupMode==='export'){
+    ta.select();
+    try{navigator.clipboard.writeText(ta.value);errEl.style.display='none';}catch{document.execCommand('copy');}
+    const btn=document.getElementById('backup-action-btn');
+    btn.textContent='Copiado!';
+    setTimeout(()=>{btn.textContent='Copiar';},1500);
+  } else {
+    try{
+      const data=JSON.parse(ta.value);
+      if(!data||typeof data!=='object')throw new Error();
+      alimExpenses=Array.isArray(data.alim)?data.alim:[];
+      transpExpenses=Array.isArray(data.transp)?data.transp:[];
+      parcelas=Array.isArray(data.parcelas)?data.parcelas:[];
+      save('gastos-alim-v1',alimExpenses);
+      save('gastos-transp-v1',transpExpenses);
+      save('gastos-parcelas-v1',parcelas);
+      errEl.style.display='none';
+      document.getElementById('overlay-backup').classList.remove('open');
+      renderSection(currentTab);
+    }catch{errEl.textContent='Texto inválido. Verifique se colou o backup completo.';errEl.style.display='block';}
+  }
+}
 let aiSection='alimentacao';
 function openAi(section){aiSection=section;document.getElementById('ai-input').value='';document.getElementById('ai-error').style.display='none';document.getElementById('overlay-ai').classList.add('open');}
 function closeAi(e){if(!e||e.target===document.getElementById('overlay-ai'))document.getElementById('overlay-ai').classList.remove('open');}
