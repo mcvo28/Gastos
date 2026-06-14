@@ -293,8 +293,8 @@ function renderExpenses(section,expenses,cats){
   document.getElementById(prefix+'-prev').disabled=idx>=rel.length-1;
   document.getElementById(prefix+'-next').disabled=idx<=0;
   const catFilter=catFilters[section];
-  const filtered=expenses.filter(e=>e.date>=fat.start&&e.date<=fat.end&&(catFilter==='all'||e.category===catFilter));
-  const totals={};filtered.forEach(e=>{totals[e.category]=(totals[e.category]||0)+e.amount;totals.all=(totals.all||0)+e.amount;});
+  const filtered=expenses.filter(e=>{let cat=e.category==='mercado'?'feira':e.category;return e.date>=fat.start&&e.date<=fat.end&&(catFilter==='all'||cat===catFilter);});
+  const totals={};filtered.forEach(e=>{let cat=e.category;if(cat==='mercado')cat='feira';totals[cat]=(totals[cat]||0)+e.amount;totals.all=(totals.all||0)+e.amount;});
   document.getElementById(prefix+'-summaries').innerHTML=Object.entries(cats).map(([k,c])=>`<div class="summary-card" style="background:${c.color}18;border:1px solid ${c.color}40"><div class="summary-label">${c.emoji} ${c.label}</div><div class="summary-val" style="color:${c.color}">${fmt(totals[k]||0)}</div></div>`).join('');
   const allF=[['all','Todos','#f0ede8'],...Object.entries(cats).map(([k,v])=>[k,v.label,v.color])];
   document.getElementById(prefix+'-filters').innerHTML=allF.map(([k,l,c])=>`<button class="pill filter-btn${catFilter===k?' active':''}" style="${catFilter===k?`background:${c};color:${k==='all'?'#0f0f13':'#fff'};border:none`:''}" onclick="setFilter('${section}','${k}')">${l}</button>`).join('');
@@ -306,7 +306,7 @@ function renderExpenses(section,expenses,cats){
     dates.forEach(date=>{
       const dt=grouped[date].reduce((s,e)=>s+e.amount,0);
       html+=`<div class="day-header"><span class="day-label">${fmtDate(date)}</span><span class="day-total">${fmt(dt)}</span></div><div class="day-group">`;
-      grouped[date].forEach(exp=>{const c=cats[exp.category]||Object.values(cats)[0];html+=`<div class="expense-row"><span class="expense-emoji">${c.emoji}</span><div class="expense-info"><div class="expense-name">${exp.name}</div><span class="expense-tag" style="background:${c.color}20;color:${c.color}">${c.label}</span></div><div class="expense-amount">${fmt(exp.amount)}</div><button class="action-btn" onclick="editExpense('${section}','${exp.id}')">✏️</button><button class="action-btn" onclick="deleteExpense('${section}','${exp.id}')">🗑️</button></div>`;});
+      grouped[date].forEach(exp=>{let catKey=exp.category==='mercado'?'feira':exp.category;const c=cats[catKey]||Object.values(cats)[0];html+=`<div class="expense-row"><span class="expense-emoji">${c.emoji}</span><div class="expense-info"><div class="expense-name">${exp.name}</div><span class="expense-tag" style="background:${c.color}20;color:${c.color}">${c.label}</span></div><div class="expense-amount">${fmt(exp.amount)}</div><button class="action-btn" onclick="editExpense('${section}','${exp.id}')">✏️</button><button class="action-btn" onclick="deleteExpense('${section}','${exp.id}')">🗑️</button></div>`;});
       html+=`</div>`;
     });
     html+=`<div class="fatura-total">Total da fatura: <span>${fmt(totals.all||0)}</span></div>`;
@@ -334,7 +334,7 @@ function renderResumo(){
   const transpTot=transpF.reduce((s,e)=>s+e.amount,0);
   const parcelaTot=parcelas.reduce((s,p)=>s+p.amount,0);
   const grandTotal=alimTot+transpTot+parcelaTot;
-  const alimByCat={};alimF.forEach(e=>{alimByCat[e.category]=(alimByCat[e.category]||0)+e.amount;});
+  const alimByCat={};alimF.forEach(e=>{let cat=e.category==='mercado'?'feira':e.category;alimByCat[cat]=(alimByCat[cat]||0)+e.amount;});
   const transpByCat={};transpF.forEach(e=>{transpByCat[e.category]=(transpByCat[e.category]||0)+e.amount;});
   let html=`<div class="resumo-total"><div class="resumo-total-label">Total geral da fatura</div><div class="resumo-total-val">${fmt(grandTotal)}</div></div>`;
   html+=`<div class="resumo-card"><div class="resumo-card-title">🍽️ Alimentação — ${fmt(alimTot)}</div>`;
@@ -360,7 +360,9 @@ function openForm(section,exp=null){
   document.getElementById('f-name').value=exp?exp.name:'';
   document.getElementById('f-amount').value=exp?exp.amount:'';
   document.getElementById('f-date').value=exp?exp.date:today();
-  renderCatRow(cats,exp?exp.category:Object.keys(cats)[0]);
+  let cat=exp?exp.category:Object.keys(cats)[0];
+  if(cat==='mercado')cat='feira';
+  renderCatRow(cats,cat);
   document.getElementById('overlay-form').classList.add('open');
 }
 function renderCatRow(cats,selected){
