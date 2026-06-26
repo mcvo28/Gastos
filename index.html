@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
@@ -45,6 +46,10 @@ body{padding-top:var(--safe-top);}
 .filters::-webkit-scrollbar{display:none;}
 .filter-btn{padding:6px 14px;font-size:12px;white-space:nowrap;border:1px solid var(--border);background:#1e1e28;color:var(--muted);}
 .filter-btn.active{border:none;}
+.person-switcher{display:flex;gap:8px;margin-bottom:14px;}
+.person-btn{flex:1;padding:9px;border-radius:12px;border:1px solid var(--border);background:var(--bg);color:var(--muted);font-size:13px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;text-align:center;transition:all .15s;}
+.person-btn.active{background:rgba(249,115,22,.12);border-color:var(--accent);color:var(--accent);}
+.person-btn:active{transform:scale(.97);}
 .list{padding:16px 20px 100px;}
 .empty{text-align:center;padding:50px 0;color:#444;}
 .empty-icon{font-size:32px;margin-bottom:10px;}
@@ -142,6 +147,10 @@ textarea.field{resize:none;line-height:1.5;}
         <button class="pill btn-new" onclick="openForm('transporte')">+ Novo</button>
       </div>
     </div>
+    <div class="person-switcher">
+      <button class="person-btn active" id="btn-matheus" onclick="switchPerson('matheus')">🚗 Matheus</button>
+      <button class="person-btn" id="btn-rafa" onclick="switchPerson('rafa')">🛵 Rafa</button>
+    </div>
     <div class="fatura-nav">
       <button class="nav-btn" id="transp-prev" onclick="changeFatura('transporte',-1)">‹</button>
       <div class="fatura-label"><div class="fatura-name" id="transp-fatura-name">—</div><div class="fatura-range" id="transp-fatura-range">—</div></div>
@@ -238,7 +247,9 @@ function load(key){try{return JSON.parse(localStorage.getItem(key))||[];}catch{r
 function save(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catch{}}
 let alimExpenses=load('gastos-alim-v1');
 let transpExpenses=load('gastos-transp-v1');
+let transpRafaExpenses=load('gastos-transp-rafa-v1');
 let parcelas=load('gastos-parcelas-v1');
+let currentPerson='matheus';
 function generateFaturas(count=24){
   const result=[];const now=new Date();let sy=now.getFullYear(),sm=now.getMonth();
   if(now.getDate()<CLOSING_DAY){sm--;if(sm<0){sm=11;sy--;}}
@@ -260,8 +271,8 @@ let faturaIds={alimentacao:getCurrentFaturaId(),transporte:getCurrentFaturaId(),
 let catFilters={alimentacao:'all',transporte:'all'};
 function relevantFaturas(expenses){return FATURAS.filter(f=>expenses.some(e=>e.date>=f.start&&e.date<=f.end)||f.id===getCurrentFaturaId()).sort((a,b)=>b.start.localeCompare(a.start));}
 function changeFatura(section,dir){
-  const expenses=section==='transporte'?transpExpenses:alimExpenses;
-  const rel=relevantFaturas(expenses);
+  const expenses=currentPerson==='rafa'?transpRafaExpenses:transpExpenses;
+  const rel=relevantFaturas(section==='transporte'?expenses:alimExpenses);
   const key=section==='resumo'?'resumo':section;
   const idx=rel.findIndex(f=>f.id===faturaIds[key]);
   const next=idx-dir;
@@ -277,9 +288,15 @@ function switchTab(tab){
   document.getElementById('sec-'+tab).classList.add('active');
   currentTab=tab;renderSection(tab);
 }
+function switchPerson(person){
+  currentPerson=person;
+  document.getElementById('btn-matheus').classList.toggle('active',person==='matheus');
+  document.getElementById('btn-rafa').classList.toggle('active',person==='rafa');
+  renderSection('transporte');
+}
 function renderSection(section){
   if(section==='alimentacao')renderExpenses('alimentacao',alimExpenses,ALIM_CATS);
-  else if(section==='transporte')renderExpenses('transporte',transpExpenses,TRANSP_CATS);
+  else if(section==='transporte'){const expenses=currentPerson==='rafa'?transpRafaExpenses:transpExpenses;renderExpenses('transporte',expenses,TRANSP_CATS);}
   else if(section==='parcelas')renderParcelas();
   else if(section==='resumo')renderResumo();
 }
@@ -322,7 +339,7 @@ function renderParcelas(){
 }
 function renderResumo(){
   const fat=FATURAS.find(f=>f.id===faturaIds.resumo)||FATURAS[0];
-  const rel=relevantFaturas([...alimExpenses,...transpExpenses]);
+  const rel=relevantFaturas([...alimExpenses,...transpExpenses,...transpRafaExpenses]);
   const idx=rel.findIndex(f=>f.id===faturaIds.resumo);
   document.getElementById('resumo-fatura-name').textContent=fat.label;
   document.getElementById('resumo-fatura-range').textContent=`${fmtShort(fat.start)} → ${fmtShort(fat.end)}`;
@@ -330,18 +347,24 @@ function renderResumo(){
   document.getElementById('resumo-next').disabled=idx<=0;
   const alimF=alimExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
   const transpF=transpExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
+  const transpRafaF=transpRafaExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
   const alimTot=alimF.reduce((s,e)=>s+e.amount,0);
   const transpTot=transpF.reduce((s,e)=>s+e.amount,0);
+  const transpRafaTot=transpRafaF.reduce((s,e)=>s+e.amount,0);
   const parcelaTot=parcelas.reduce((s,p)=>s+p.amount,0);
-  const grandTotal=alimTot+transpTot+parcelaTot;
+  const grandTotal=alimTot+transpTot+transpRafaTot+parcelaTot;
   const alimByCat={};alimF.forEach(e=>{let cat=e.category==='mercado'?'feira':e.category;alimByCat[cat]=(alimByCat[cat]||0)+e.amount;});
-  const transpByCat={};transpF.forEach(e=>{transpByCat[e.category]=(transpByCat[e.category]||0)+e.amount;});
   let html=`<div class="resumo-total"><div class="resumo-total-label">Total geral da fatura</div><div class="resumo-total-val">${fmt(grandTotal)}</div></div>`;
   html+=`<div class="resumo-card"><div class="resumo-card-title">🍽️ Alimentação — ${fmt(alimTot)}</div>`;
   Object.entries(ALIM_CATS).forEach(([k,c])=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${c.emoji} ${c.label}</span><span class="resumo-row-val" style="color:${c.color}">${fmt(alimByCat[k]||0)}</span></div>`;});
   html+=`</div>`;
-  html+=`<div class="resumo-card"><div class="resumo-card-title">🚗 Transporte — ${fmt(transpTot)}</div>`;
+  html+=`<div class="resumo-card"><div class="resumo-card-title">🚗 Transporte Matheus — ${fmt(transpTot)}</div>`;
+  const transpByCat={};transpF.forEach(e=>{transpByCat[e.category]=(transpByCat[e.category]||0)+e.amount;});
   Object.entries(TRANSP_CATS).forEach(([k,c])=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${c.emoji} ${c.label}</span><span class="resumo-row-val" style="color:${c.color}">${fmt(transpByCat[k]||0)}</span></div>`;});
+  html+=`</div>`;
+  html+=`<div class="resumo-card"><div class="resumo-card-title">🛵 Transporte Rafa — ${fmt(transpRafaTot)}</div>`;
+  const transpRafaByCat={};transpRafaF.forEach(e=>{transpRafaByCat[e.category]=(transpRafaByCat[e.category]||0)+e.amount;});
+  Object.entries(TRANSP_CATS).forEach(([k,c])=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${c.emoji} ${c.label}</span><span class="resumo-row-val" style="color:${c.color}">${fmt(transpRafaByCat[k]||0)}</span></div>`;});
   html+=`</div>`;
   html+=`<div class="resumo-card"><div class="resumo-card-title">💳 Parcelas — ${fmt(parcelaTot)}</div>`;
   if(!parcelas.length){html+=`<div class="resumo-row"><span class="resumo-row-label" style="color:#555">Nenhuma parcela cadastrada</span></div>`;}
@@ -388,16 +411,34 @@ function handleSubmit(){
   const category=getSelectedCat();
   if(!name||!amount||!date)return;
   const entry={id:editId||String(Date.now()),name,amount,category,date};
-  if(formSection==='alimentacao'){if(editId)alimExpenses=alimExpenses.map(e=>e.id===editId?entry:e);else alimExpenses.push(entry);save('gastos-alim-v1',alimExpenses);}
-  else{if(editId)transpExpenses=transpExpenses.map(e=>e.id===editId?entry:e);else transpExpenses.push(entry);save('gastos-transp-v1',transpExpenses);}
+  if(formSection==='alimentacao'){
+    if(editId)alimExpenses=alimExpenses.map(e=>e.id===editId?entry:e);
+    else alimExpenses.push(entry);
+    save('gastos-alim-v1',alimExpenses);
+  } else {
+    if(currentPerson==='rafa'){
+      if(editId)transpRafaExpenses=transpRafaExpenses.map(e=>e.id===editId?entry:e);
+      else transpRafaExpenses.push(entry);
+      save('gastos-transp-rafa-v1',transpRafaExpenses);
+    } else {
+      if(editId)transpExpenses=transpExpenses.map(e=>e.id===editId?entry:e);
+      else transpExpenses.push(entry);
+      save('gastos-transp-v1',transpExpenses);
+    }
+  }
   const match=FATURAS.find(f=>date>=f.start&&date<=f.end);
   if(match)faturaIds[formSection]=match.id;
   document.getElementById('overlay-form').classList.remove('open');
   renderSection(formSection);
 }
-function editExpense(section,id){const expenses=section==='alimentacao'?alimExpenses:transpExpenses;const exp=expenses.find(e=>e.id===id);if(exp)openForm(section,exp);}
+function editExpense(section,id){
+  const expenses=section==='alimentacao'?alimExpenses:(currentPerson==='rafa'?transpRafaExpenses:transpExpenses);
+  const exp=expenses.find(e=>e.id===id);
+  if(exp)openForm(section,exp);
+}
 function deleteExpense(section,id){
   if(section==='alimentacao'){alimExpenses=alimExpenses.filter(e=>e.id!==id);save('gastos-alim-v1',alimExpenses);}
+  else if(currentPerson==='rafa'){transpRafaExpenses=transpRafaExpenses.filter(e=>e.id!==id);save('gastos-transp-rafa-v1',transpRafaExpenses);}
   else{transpExpenses=transpExpenses.filter(e=>e.id!==id);save('gastos-transp-v1',transpExpenses);}
   renderSection(section);
 }
@@ -433,7 +474,7 @@ function openBackup(mode){
   if(mode==='export'){
     title.textContent='Exportar backup';
     desc.textContent='Copie este texto e cole num app de Notas. Para restaurar depois, volte aqui e use "Importar".';
-    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,parcelas:parcelas});
+    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,parcelas:parcelas});
     ta.readOnly=true;
     btn.textContent='Copiar';
   } else {
@@ -462,9 +503,11 @@ function handleBackupAction(){
       if(!data||typeof data!=='object')throw new Error();
       alimExpenses=Array.isArray(data.alim)?data.alim:[];
       transpExpenses=Array.isArray(data.transp)?data.transp:[];
+      transpRafaExpenses=Array.isArray(data.transpRafa)?data.transpRafa:[];
       parcelas=Array.isArray(data.parcelas)?data.parcelas:[];
       save('gastos-alim-v1',alimExpenses);
       save('gastos-transp-v1',transpExpenses);
+      save('gastos-transp-rafa-v1',transpRafaExpenses);
       save('gastos-parcelas-v1',parcelas);
       errEl.style.display='none';
       document.getElementById('overlay-backup').classList.remove('open');
@@ -497,6 +540,7 @@ function handleAiImport(){
   const parsed=parseInput(text,aiSection);
   if(!parsed.length){errEl.textContent="Não encontrei nenhum gasto. Ex: Paul's - 43,59";errEl.style.display='block';return;}
   if(aiSection==='alimentacao'){alimExpenses.push(...parsed);save('gastos-alim-v1',alimExpenses);}
+  else if(currentPerson==='rafa'){transpRafaExpenses.push(...parsed);save('gastos-transp-rafa-v1',transpRafaExpenses);}
   else{transpExpenses.push(...parsed);save('gastos-transp-v1',transpExpenses);}
   const match=FATURAS.find(f=>parsed[0].date>=f.start&&parsed[0].date<=f.end);
   if(match)faturaIds[aiSection]=match.id;
