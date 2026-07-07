@@ -256,9 +256,12 @@ textarea.field{resize:none;line-height:1.5;}
 <!-- Date Edit Modal -->
 <div class="overlay" id="overlay-date">
   <div class="modal">
-    <div class="modal-title">Alterar fechamento</div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6">Dia de fechamento desta fatura:</p>
-    <input class="field" id="date-day-input" type="number" min="1" max="28" placeholder="Dia (ex: 22)" />
+    <div class="modal-title">Alterar período da fatura</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6">Defina o início e fim desta fatura:</p>
+    <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">Início</label>
+    <input class="field" id="date-start-input" type="date" style="-webkit-appearance:none;color-scheme:dark;" />
+    <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">Fim</label>
+    <input class="field" id="date-end-input" type="date" style="-webkit-appearance:none;color-scheme:dark;" />
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeOverlay('overlay-date')">Cancelar</button>
       <button class="btn-confirm" onclick="handleDateEdit()">Salvar</button>
@@ -304,8 +307,8 @@ let transpRafaExpenses=load('gastos-transp-rafa-v1',[]);
 // parcelas: [{id, name, amount, current, total, refYear, refMonth}]
 // refYear/refMonth = the year/month when current/total was recorded
 let parcelasData=load('gastos-parcelas-v2',[]);
-// closing day overrides per fatura id
-let closingOverrides=load('gastos-closing-v1',{});
+// date overrides per fatura id: {fatId: {start, end}}
+let dateOverrides=load('gastos-dates-v1',{});
 let currentPerson='matheus';
 let currentTab='alimentacao';
 
@@ -397,30 +400,27 @@ if(parcelasData.length===0){
 }
 
 // ── Faturas ───────────────────────────────────────────────────────────────────
-// Default closing day is 22, but can be overridden per fatura
 const DEFAULT_CLOSING=22;
-
-function getClosingDay(fatId){return closingOverrides[fatId]||DEFAULT_CLOSING;}
 
 function generateFaturas(count=30){
   const result=[];
   const now=new Date();
   let sy=now.getFullYear(),sm=now.getMonth();
   const day=now.getDate();
-  const closingToday=getClosingDay('current')||DEFAULT_CLOSING;
-  if(day<closingToday){sm--;if(sm<0){sm=11;sy--;}}
+  if(day<DEFAULT_CLOSING){sm--;if(sm<0){sm=11;sy--;}}
   for(let i=-(count/2|0);i<=count/2;i++){
     let s=sm+i,sy2=sy;
     while(s<0){s+=12;sy2--;}while(s>11){s-=12;sy2++;}
     let e=s+1,ey=sy2;if(e>11){e=0;ey++;}
     let l=e+1,ly=ey;if(l>11){l=0;ly++;}
     const id=`${sy2}-${s}`;
-    const closing=getClosingDay(id);
-    const start=`${sy2}-${String(s+1).padStart(2,'0')}-${String(closing).padStart(2,'0')}`;
-    const endDay=closing-1;
-    const end=`${ey}-${String(e+1).padStart(2,'0')}-${String(endDay).padStart(2,'0')}`;
+    const ov=dateOverrides[id]||{};
+    const defStart=`${sy2}-${String(s+1).padStart(2,'0')}-${String(DEFAULT_CLOSING).padStart(2,'0')}`;
+    const defEnd=`${ey}-${String(e+1).padStart(2,'0')}-${String(DEFAULT_CLOSING-1).padStart(2,'0')}`;
+    const start=ov.start||defStart;
+    const end=ov.end||defEnd;
     const label=`Fatura ${MONTHS[l]}${ly!==now.getFullYear()?' '+ly:''}`;
-    result.push({id,label,start,end,closingDay:closing,month:l,year:ly});
+    result.push({id,label,start,end,month:l,year:ly});
   }
   return result;
 }
@@ -567,7 +567,7 @@ function renderParcelas(){
   const rel=allFaturas();
   const idx=rel.findIndex(f=>f.id===faturaIds.parcelas);
   document.getElementById('parc-fatura-name').textContent=fat.label;
-  document.getElementById('parc-fatura-range').innerHTML=`${fmtShort(fat.start)} → ${fmtShort(fat.end)}`;
+  document.getElementById('parc-fatura-range').innerHTML=`<span class="fatura-range-text" onclick="openDateEdit('${fat.id}')">${fmtShort(fat.start)} → ${fmtShort(fat.end)}</span> <span style="font-size:10px;opacity:.4" onclick="openDateEdit('${fat.id}')">✏️</span>`;
   document.getElementById('parc-prev').disabled=idx>=rel.length-1;
   document.getElementById('parc-next').disabled=idx<=0;
 
@@ -654,14 +654,18 @@ let editingFatId=null;
 function openDateEdit(fatId){
   editingFatId=fatId;
   const f=FATURAS.find(x=>x.id===fatId);
-  document.getElementById('date-day-input').value=f?f.closingDay:DEFAULT_CLOSING;
+  document.getElementById('date-start-input').value=f?f.start:'';
+  document.getElementById('date-end-input').value=f?f.end:'';
   openOverlay('overlay-date');
 }
 function handleDateEdit(){
-  const day=parseInt(document.getElementById('date-day-input').value);
-  if(!day||day<1||day>28)return;
-  closingOverrides[editingFatId]=day;
-  save('gastos-closing-v1',closingOverrides);
+  const start=document.getElementById('date-start-input').value;
+  const end=document.getElementById('date-end-input').value;
+  if(!start||!end||start>=end)return;
+  if(!dateOverrides[editingFatId])dateOverrides[editingFatId]={};
+  dateOverrides[editingFatId].start=start;
+  dateOverrides[editingFatId].end=end;
+  save('gastos-dates-v1',dateOverrides);
   FATURAS=generateFaturas();
   closeOverlay('overlay-date');
   renderSection(currentTab);
@@ -825,7 +829,7 @@ function openBackup(mode){
   if(mode==='export'){
     document.getElementById('backup-title').textContent='Exportar backup';
     document.getElementById('backup-desc').textContent='Copie este texto e cole nas Notas. Use "Importar" para restaurar.';
-    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,parcelas:parcelasData,closing:closingOverrides});
+    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,parcelas:parcelasData,dates:dateOverrides});
     ta.readOnly=true;btn.textContent='Copiar';
   } else {
     document.getElementById('backup-title').textContent='Importar backup';
@@ -851,12 +855,12 @@ function handleBackupAction(){
       transpExpenses=Array.isArray(data.transp)?data.transp:[];
       transpRafaExpenses=Array.isArray(data.transpRafa)?data.transpRafa:[];
       parcelasData=Array.isArray(data.parcelas)?data.parcelas:SEED_PARCELAS;
-      if(data.closing)closingOverrides=data.closing;
+      if(data.dates)dateOverrides=data.dates;else if(data.closing){}// legacy ignore
       save('gastos-alim-v1',alimExpenses);
       save('gastos-transp-v1',transpExpenses);
       save('gastos-transp-rafa-v1',transpRafaExpenses);
       save('gastos-parcelas-v2',parcelasData);
-      save('gastos-closing-v1',closingOverrides);
+      save('gastos-dates-v1',dateOverrides);
       FATURAS=generateFaturas();
       errEl.style.display='none';
       closeOverlay('overlay-backup');
