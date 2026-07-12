@@ -116,8 +116,9 @@ textarea.field{resize:none;line-height:1.5;}
 <body>
 
 <div class="tabs">
-  <div class="tab active" onclick="switchTab('alimentacao')"><span class="tab-icon">🍽️</span><span class="tab-label">Alimentação</span></div>
-  <div class="tab" onclick="switchTab('transporte')"><span class="tab-icon">🚗</span><span class="tab-label">Transporte</span></div>
+  <div class="tab active" onclick="switchTab('alimentacao')"><span class="tab-icon">🍽️</span><span class="tab-label">Aliment.</span></div>
+  <div class="tab" onclick="switchTab('transporte')"><span class="tab-icon">🚗</span><span class="tab-label">Transp.</span></div>
+  <div class="tab" onclick="switchTab('farmacia')"><span class="tab-icon">💊</span><span class="tab-label">Farmácia</span></div>
   <div class="tab" onclick="switchTab('parcelas')"><span class="tab-icon">💳</span><span class="tab-label">Parcelas</span></div>
   <div class="tab" onclick="switchTab('resumo')"><span class="tab-icon">📊</span><span class="tab-label">Resumo</span></div>
 </div>
@@ -172,6 +173,29 @@ textarea.field{resize:none;line-height:1.5;}
     <div class="filters" id="transp-filters"></div>
   </div>
   <div class="list" id="transp-list"></div>
+</div>
+
+<!-- FARMÁCIA -->
+<div class="section" id="sec-farmacia">
+  <div class="header">
+    <div class="title-row">
+      <div><div class="title-main">Gastos com</div><div class="title-sub">Farmácia</div></div>
+      <div class="btn-row">
+        <button class="pill btn-ai" onclick="openAi('farmacia')">✨ IA</button>
+        <button class="pill btn-new" onclick="openForm('farmacia')">+ Novo</button>
+      </div>
+    </div>
+    <div class="fatura-nav">
+      <button class="nav-btn" id="farm-prev" onclick="changeFatura('farmacia',-1)">‹</button>
+      <div class="fatura-label">
+        <div class="fatura-name" id="farm-fatura-name">—</div>
+        <div class="fatura-range" id="farm-fatura-range">—</div>
+      </div>
+      <button class="nav-btn" id="farm-next" onclick="changeFatura('farmacia',1)">›</button>
+    </div>
+    <div class="summaries" id="farm-summaries"></div>
+  </div>
+  <div class="list" id="farm-list"></div>
 </div>
 
 <!-- PARCELAS -->
@@ -304,6 +328,7 @@ function save(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catc
 let alimExpenses=load('gastos-alim-v1',[]);
 let transpExpenses=load('gastos-transp-v1',[]);
 let transpRafaExpenses=load('gastos-transp-rafa-v1',[]);
+let farmaciaExpenses=load('gastos-farm-v1',[]);
 // parcelas: [{id, name, amount, current, total, refYear, refMonth}]
 // refYear/refMonth = the year/month when current/total was recorded
 let parcelasData=load('gastos-parcelas-v2',[]);
@@ -435,7 +460,7 @@ function getCurrentFaturaId(){
   return FATURAS[Math.floor(FATURAS.length/2)].id;
 }
 
-let faturaIds={alimentacao:getCurrentFaturaId(),transporte:getCurrentFaturaId(),parcelas:getCurrentFaturaId(),resumo:getCurrentFaturaId()};
+let faturaIds={alimentacao:getCurrentFaturaId(),transporte:getCurrentFaturaId(),farmacia:getCurrentFaturaId(),parcelas:getCurrentFaturaId(),resumo:getCurrentFaturaId()};
 let catFilters={alimentacao:'all',transporte:'all'};
 
 function relevantFaturas(expenses){
@@ -449,7 +474,7 @@ function allFaturas(){
 }
 
 function changeFatura(section,dir){
-  let expenses=section==='transporte'?(currentPerson==='rafa'?transpRafaExpenses:transpExpenses):alimExpenses;
+  let expenses=section==='transporte'?(currentPerson==='rafa'?transpRafaExpenses:transpExpenses):section==='farmacia'?farmaciaExpenses:alimExpenses;
   const rel=section==='parcelas'||section==='resumo'?allFaturas():relevantFaturas(expenses);
   const idx=rel.findIndex(f=>f.id===faturaIds[section]);
   const next=idx-dir;
@@ -489,7 +514,7 @@ document.querySelectorAll('.overlay').forEach(el=>{
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(tab){
-  document.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('active',['alimentacao','transporte','parcelas','resumo'][i]===tab);});
+  document.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('active',['alimentacao','transporte','farmacia','parcelas','resumo'][i]===tab);});
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('sec-'+tab).classList.add('active');
   currentTab=tab;renderSection(tab);
@@ -505,6 +530,7 @@ function switchPerson(person){
 function renderSection(section){
   if(section==='alimentacao')renderExpenses('alimentacao',alimExpenses,ALIM_CATS);
   else if(section==='transporte'){const e=currentPerson==='rafa'?transpRafaExpenses:transpExpenses;renderExpenses('transporte',e,TRANSP_CATS);}
+  else if(section==='farmacia')renderFarmacia();
   else if(section==='parcelas')renderParcelas();
   else if(section==='resumo')renderResumo();
 }
@@ -561,6 +587,41 @@ function renderExpenses(section,expenses,cats){
   document.getElementById(section==='alimentacao'?'alim-list':'transp-list').innerHTML=html;
 }
 
+// ── Render farmacia ───────────────────────────────────────────────────────────
+function renderFarmacia(){
+  const fat=FATURAS.find(f=>f.id===faturaIds.farmacia)||FATURAS[0];
+  const rel=relevantFaturas(farmaciaExpenses);
+  const idx=rel.findIndex(f=>f.id===faturaIds.farmacia);
+  document.getElementById('farm-fatura-name').textContent=fat.label;
+  document.getElementById('farm-fatura-range').innerHTML=
+    `<span class="fatura-range-text" onclick="openDateEdit('${fat.id}')">${fmtShort(fat.start)} → ${fmtShort(fat.end)}</span> <span style="font-size:10px;opacity:.4" onclick="openDateEdit('${fat.id}')">✏️</span>`;
+  document.getElementById('farm-prev').disabled=idx>=rel.length-1;
+  document.getElementById('farm-next').disabled=idx<=0;
+
+  const filtered=farmaciaExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
+  const total=filtered.reduce((s,e)=>s+e.amount,0);
+
+  document.getElementById('farm-summaries').innerHTML=
+    `<div class="summary-card" style="background:#f472b618;border:1px solid #f472b640;width:100%"><div class="summary-label">💊 Total da fatura</div><div class="summary-val" style="color:#f472b6">${fmt(total)}</div></div>`;
+
+  const grouped={};filtered.forEach(e=>{if(!grouped[e.date])grouped[e.date]=[];grouped[e.date].push(e);});
+  const dates=Object.keys(grouped).sort((a,b)=>b.localeCompare(a));
+  let html='';
+  if(!dates.length){html=`<div class="empty"><div class="empty-icon">💊</div>Nenhum gasto nesta fatura ainda.</div>`;}
+  else{
+    dates.forEach(date=>{
+      const dt=grouped[date].reduce((s,e)=>s+e.amount,0);
+      html+=`<div class="day-header"><span class="day-label">${fmtDate(date)}</span><span class="day-total">${fmt(dt)}</span></div><div class="day-group">`;
+      grouped[date].forEach(exp=>{
+        html+=`<div class="expense-row"><span class="expense-emoji">💊</span><div class="expense-info"><div class="expense-name">${exp.name}</div><span class="expense-tag" style="background:#f472b620;color:#f472b6">Farmácia</span></div><div class="expense-amount">${fmt(exp.amount)}</div><button class="action-btn" onclick="editExpense('farmacia','${exp.id}')">✏️</button><button class="action-btn" onclick="deleteExpense('farmacia','${exp.id}')">🗑️</button></div>`;
+      });
+      html+=`</div>`;
+    });
+    html+=`<div class="fatura-total">Total da fatura: <span>${fmt(total)}</span></div>`;
+  }
+  document.getElementById('farm-list').innerHTML=html;
+}
+
 // ── Render parcelas ───────────────────────────────────────────────────────────
 function renderParcelas(){
   const fat=FATURAS.find(f=>f.id===faturaIds.parcelas)||FATURAS[0];
@@ -610,14 +671,16 @@ function renderResumo(){
   const alimF=alimExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
   const transpF=transpExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
   const transpRafaF=transpRafaExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
+  const farmF=farmaciaExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
   const {year,month}=getFaturaYearMonth(fat.id);
   const activeP=parcelasData.map(p=>parcelaForMonth(p,year,month)).filter(Boolean);
 
   const alimTot=alimF.reduce((s,e)=>s+e.amount,0);
   const transpTot=transpF.reduce((s,e)=>s+e.amount,0);
   const transpRafaTot=transpRafaF.reduce((s,e)=>s+e.amount,0);
+  const farmTot=farmF.reduce((s,e)=>s+e.amount,0);
   const parcelaTot=activeP.reduce((s,p)=>s+p.amount,0);
-  const grandTotal=alimTot+transpTot+transpRafaTot+parcelaTot;
+  const grandTotal=alimTot+transpTot+transpRafaTot+farmTot+parcelaTot;
 
   const alimByCat={};alimF.forEach(e=>{let cat=e.category==='mercado'?'feira':e.category;alimByCat[cat]=(alimByCat[cat]||0)+e.amount;});
   const transpByCat={};transpF.forEach(e=>{transpByCat[e.category]=(transpByCat[e.category]||0)+e.amount;});
@@ -635,6 +698,11 @@ function renderResumo(){
 
   html+=`<div class="resumo-card"><div class="resumo-card-title">🚙 Transporte Rafa — ${fmt(transpRafaTot)}</div>`;
   Object.entries(TRANSP_CATS).forEach(([k,c])=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${c.emoji} ${c.label}</span><span class="resumo-row-val" style="color:${c.color}">${fmt(transpRafaByCat[k]||0)}</span></div>`;});
+  html+=`</div>`;
+
+  html+=`<div class="resumo-card"><div class="resumo-card-title">💊 Farmácia — ${fmt(farmTot)}</div>`;
+  if(!farmF.length){html+=`<div class="resumo-row"><span class="resumo-row-label" style="color:#555">Nenhum gasto nesta fatura</span></div>`;}
+  else{html+=`<div class="resumo-row"><span class="resumo-row-label">💊 Total</span><span class="resumo-row-val" style="color:#f472b6">${fmt(farmTot)}</span></div>`;}
   html+=`</div>`;
 
   html+=`<div class="resumo-card"><div class="resumo-card-title">💳 Parcelas — ${fmt(parcelaTot)}</div>`;
@@ -677,14 +745,20 @@ let editId=null;
 
 function openForm(section,exp=null){
   formSection=section;editId=exp?exp.id:null;
-  const cats=section==='alimentacao'?ALIM_CATS:TRANSP_CATS;
+  const cats=section==='alimentacao'?ALIM_CATS:section==='farmacia'?null:TRANSP_CATS;
   document.getElementById('form-title').textContent=exp?'Editar gasto':'Novo gasto';
   document.getElementById('f-name').value=exp?exp.name:'';
   document.getElementById('f-amount').value=exp?exp.amount:'';
   document.getElementById('f-date').value=exp?exp.date:today();
-  let cat=exp?exp.category:Object.keys(cats)[0];
-  if(cat==='mercado')cat='feira';
-  renderCatRow(cats,cat);
+  if(cats){
+    document.getElementById('f-cat-row').style.display='flex';
+    let cat=exp?exp.category:Object.keys(cats)[0];
+    if(cat==='mercado')cat='feira';
+    renderCatRow(cats,cat);
+  } else {
+    document.getElementById('f-cat-row').style.display='none';
+    document.getElementById('f-cat-row').innerHTML='';
+  }
   openOverlay('overlay-form');
 }
 
@@ -697,6 +771,7 @@ function renderCatRow(cats,selected){
 function selectCat(key,btn){document.querySelectorAll('#f-cat-row .cat-btn').forEach(b=>b.classList.remove('active'));btn.classList.add('active');}
 
 function getSelectedCat(){
+  if(formSection==='farmacia')return'farmacia';
   const active=document.querySelector('#f-cat-row .cat-btn.active');
   if(!active)return Object.keys(formSection==='alimentacao'?ALIM_CATS:TRANSP_CATS)[0];
   const cats=formSection==='alimentacao'?ALIM_CATS:TRANSP_CATS;
@@ -719,6 +794,9 @@ function handleSubmit(){
   if(formSection==='alimentacao'){
     if(editId)alimExpenses=alimExpenses.map(e=>e.id===editId?entry:e);else alimExpenses.push(entry);
     save('gastos-alim-v1',alimExpenses);
+  } else if(formSection==='farmacia'){
+    if(editId)farmaciaExpenses=farmaciaExpenses.map(e=>e.id===editId?entry:e);else farmaciaExpenses.push(entry);
+    save('gastos-farm-v1',farmaciaExpenses);
   } else if(currentPerson==='rafa'){
     if(editId)transpRafaExpenses=transpRafaExpenses.map(e=>e.id===editId?entry:e);else transpRafaExpenses.push(entry);
     save('gastos-transp-rafa-v1',transpRafaExpenses);
@@ -733,13 +811,14 @@ function handleSubmit(){
 }
 
 function editExpense(section,id){
-  const expenses=section==='alimentacao'?alimExpenses:(currentPerson==='rafa'?transpRafaExpenses:transpExpenses);
+  const expenses=section==='alimentacao'?alimExpenses:section==='farmacia'?farmaciaExpenses:(currentPerson==='rafa'?transpRafaExpenses:transpExpenses);
   const exp=expenses.find(e=>e.id===id);
   if(exp)openForm(section,exp);
 }
 
 function deleteExpense(section,id){
   if(section==='alimentacao'){alimExpenses=alimExpenses.filter(e=>e.id!==id);save('gastos-alim-v1',alimExpenses);}
+  else if(section==='farmacia'){farmaciaExpenses=farmaciaExpenses.filter(e=>e.id!==id);save('gastos-farm-v1',farmaciaExpenses);}
   else if(currentPerson==='rafa'){transpRafaExpenses=transpRafaExpenses.filter(e=>e.id!==id);save('gastos-transp-rafa-v1',transpRafaExpenses);}
   else{transpExpenses=transpExpenses.filter(e=>e.id!==id);save('gastos-transp-v1',transpExpenses);}
   renderSection(section);
@@ -811,6 +890,7 @@ function handleAiImport(){
   const parsed=parseInput(text,aiSection);
   if(!parsed.length){errEl.textContent="Não encontrei nenhum gasto. Ex: Paul's - 43,59";errEl.style.display='block';return;}
   if(aiSection==='alimentacao'){alimExpenses.push(...parsed);save('gastos-alim-v1',alimExpenses);}
+  else if(aiSection==='farmacia'){farmaciaExpenses.push(...parsed);save('gastos-farm-v1',farmaciaExpenses);}
   else if(currentPerson==='rafa'){transpRafaExpenses.push(...parsed);save('gastos-transp-rafa-v1',transpRafaExpenses);}
   else{transpExpenses.push(...parsed);save('gastos-transp-v1',transpExpenses);}
   const match=FATURAS.find(f=>parsed[0].date>=f.start&&parsed[0].date<=f.end);
@@ -829,7 +909,7 @@ function openBackup(mode){
   if(mode==='export'){
     document.getElementById('backup-title').textContent='Exportar backup';
     document.getElementById('backup-desc').textContent='Copie este texto e cole nas Notas. Use "Importar" para restaurar.';
-    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,parcelas:parcelasData,dates:dateOverrides});
+    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,farm:farmaciaExpenses,parcelas:parcelasData,dates:dateOverrides});
     ta.readOnly=true;btn.textContent='Copiar';
   } else {
     document.getElementById('backup-title').textContent='Importar backup';
@@ -854,11 +934,13 @@ function handleBackupAction(){
       alimExpenses=Array.isArray(data.alim)?data.alim:[];
       transpExpenses=Array.isArray(data.transp)?data.transp:[];
       transpRafaExpenses=Array.isArray(data.transpRafa)?data.transpRafa:[];
+      farmaciaExpenses=Array.isArray(data.farm)?data.farm:[];
       parcelasData=Array.isArray(data.parcelas)?data.parcelas:SEED_PARCELAS;
       if(data.dates)dateOverrides=data.dates;else if(data.closing){}// legacy ignore
       save('gastos-alim-v1',alimExpenses);
       save('gastos-transp-v1',transpExpenses);
       save('gastos-transp-rafa-v1',transpRafaExpenses);
+      save('gastos-farm-v1',farmaciaExpenses);
       save('gastos-parcelas-v2',parcelasData);
       save('gastos-dates-v1',dateOverrides);
       FATURAS=generateFaturas();
