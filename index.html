@@ -17,8 +17,8 @@ body{padding-top:var(--safe-top);}
 .tabs{display:flex;background:var(--bg);border-bottom:1px solid #1e1e28;padding:0;position:sticky;top:0;z-index:100;}
 .tab{flex:1;padding:10px 0 8px;text-align:center;cursor:pointer;transition:all .15s;border-bottom:2px solid transparent;display:flex;flex-direction:column;align-items:center;gap:3px;}
 .tab.active{border-bottom-color:var(--accent);}
-.tab-icon{font-size:20px;line-height:1;}
-.tab-label{font-size:11px;font-weight:600;color:var(--muted);}
+.tab-icon{font-size:18px;line-height:1;}
+.tab-label{font-size:10px;font-weight:600;color:var(--muted);}
 .tab.active .tab-label{color:var(--accent);}
 .section{display:none;}.section.active{display:block;}
 .header{background:var(--bg);border-bottom:1px solid #1e1e28;padding:16px 20px 0;position:sticky;top:49px;z-index:99;}
@@ -119,6 +119,7 @@ textarea.field{resize:none;line-height:1.5;}
   <div class="tab active" onclick="switchTab('alimentacao')"><span class="tab-icon">🍽️</span><span class="tab-label">Aliment.</span></div>
   <div class="tab" onclick="switchTab('transporte')"><span class="tab-icon">🚗</span><span class="tab-label">Transp.</span></div>
   <div class="tab" onclick="switchTab('farmacia')"><span class="tab-icon">💊</span><span class="tab-label">Farmácia</span></div>
+  <div class="tab" onclick="switchTab('fixos')"><span class="tab-icon">📌</span><span class="tab-label">Fixos</span></div>
   <div class="tab" onclick="switchTab('parcelas')"><span class="tab-icon">💳</span><span class="tab-label">Parcelas</span></div>
   <div class="tab" onclick="switchTab('resumo')"><span class="tab-icon">📊</span><span class="tab-label">Resumo</span></div>
 </div>
@@ -196,6 +197,17 @@ textarea.field{resize:none;line-height:1.5;}
     <div class="summaries" id="farm-summaries"></div>
   </div>
   <div class="list" id="farm-list"></div>
+</div>
+
+<!-- PARCELAS -->
+<div class="section" id="sec-fixos">
+  <div class="parcelas-header">
+    <div class="title-row">
+      <div><div class="title-main">Gastos</div><div class="title-sub">Fixos mensais</div></div>
+      <div class="btn-row"><button class="pill btn-new" onclick="openFixoForm()">+ Novo</button></div>
+    </div>
+  </div>
+  <div class="list" id="fixos-list"></div>
 </div>
 
 <!-- PARCELAS -->
@@ -293,6 +305,19 @@ textarea.field{resize:none;line-height:1.5;}
   </div>
 </div>
 
+<!-- Fixo Form Modal -->
+<div class="overlay" id="overlay-fixo">
+  <div class="modal">
+    <div class="modal-title" id="fixo-form-title">Novo gasto fixo</div>
+    <input class="field" id="fx-name" placeholder="Descrição (ex: Internet)" />
+    <input class="field" id="fx-amount" type="number" step="0.01" min="0" placeholder="Valor mensal (R$)" />
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeOverlay('overlay-fixo')">Cancelar</button>
+      <button class="btn-confirm" onclick="handleFixoSubmit()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Backup Modal -->
 <div class="overlay" id="overlay-backup">
   <div class="modal">
@@ -329,6 +354,7 @@ let alimExpenses=load('gastos-alim-v1',[]);
 let transpExpenses=load('gastos-transp-v1',[]);
 let transpRafaExpenses=load('gastos-transp-rafa-v1',[]);
 let farmaciaExpenses=load('gastos-farm-v1',[]);
+let fixosData=load('gastos-fixos-v1',[]);
 // parcelas: [{id, name, amount, current, total, refYear, refMonth}]
 // refYear/refMonth = the year/month when current/total was recorded
 let parcelasData=load('gastos-parcelas-v2',[]);
@@ -514,7 +540,7 @@ document.querySelectorAll('.overlay').forEach(el=>{
 
 // ── Tab switching ─────────────────────────────────────────────────────────────
 function switchTab(tab){
-  document.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('active',['alimentacao','transporte','farmacia','parcelas','resumo'][i]===tab);});
+  document.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('active',['alimentacao','transporte','farmacia','fixos','parcelas','resumo'][i]===tab);});
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('sec-'+tab).classList.add('active');
   currentTab=tab;renderSection(tab);
@@ -531,6 +557,7 @@ function renderSection(section){
   if(section==='alimentacao')renderExpenses('alimentacao',alimExpenses,ALIM_CATS);
   else if(section==='transporte'){const e=currentPerson==='rafa'?transpRafaExpenses:transpExpenses;renderExpenses('transporte',e,TRANSP_CATS);}
   else if(section==='farmacia')renderFarmacia();
+  else if(section==='fixos')renderFixos();
   else if(section==='parcelas')renderParcelas();
   else if(section==='resumo')renderResumo();
 }
@@ -622,6 +649,48 @@ function renderFarmacia(){
   document.getElementById('farm-list').innerHTML=html;
 }
 
+// ── Render fixos ──────────────────────────────────────────────────────────────
+function renderFixos(){
+  const total=fixosData.reduce((s,f)=>s+f.amount,0);
+  let html=`<div class="parcelas-total-card" style="background:#38bdf818;border-color:#38bdf840"><div><div class="parcelas-total-label">Total fixo mensal</div></div><div class="parcelas-total-val" style="color:#38bdf8">${fmt(total)}</div></div>`;
+  if(!fixosData.length){html+=`<div class="empty"><div class="empty-icon">📌</div>Nenhum gasto fixo cadastrado.</div>`;}
+  else{
+    html+=`<div class="day-group">`;
+    fixosData.forEach(f=>{
+      html+=`<div class="parcela-row">
+        <div class="parcela-info"><div class="parcela-name">📌 ${f.name}</div></div>
+        <div class="parcela-amount" style="color:#38bdf8">${fmt(f.amount)}</div>
+        <button class="action-btn" onclick="editFixo('${f.id}')">✏️</button>
+        <button class="action-btn" onclick="deleteFixo('${f.id}')">🗑️</button>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+  document.getElementById('fixos-list').innerHTML=html;
+}
+
+let editFixoId=null;
+function openFixoForm(f=null){
+  editFixoId=f?f.id:null;
+  document.getElementById('fixo-form-title').textContent=f?'Editar gasto fixo':'Novo gasto fixo';
+  document.getElementById('fx-name').value=f?f.name:'';
+  document.getElementById('fx-amount').value=f?f.amount:'';
+  openOverlay('overlay-fixo');
+}
+function handleFixoSubmit(){
+  const name=document.getElementById('fx-name').value.trim();
+  const amount=parseFloat(document.getElementById('fx-amount').value);
+  if(!name||!amount)return;
+  const entry={id:editFixoId||String(Date.now()),name,amount};
+  if(editFixoId)fixosData=fixosData.map(f=>f.id===editFixoId?entry:f);
+  else fixosData.push(entry);
+  save('gastos-fixos-v1',fixosData);
+  closeOverlay('overlay-fixo');
+  renderFixos();
+}
+function editFixo(id){const f=fixosData.find(f=>f.id===id);if(f)openFixoForm(f);}
+function deleteFixo(id){fixosData=fixosData.filter(f=>f.id!==id);save('gastos-fixos-v1',fixosData);renderFixos();}
+
 // ── Render parcelas ───────────────────────────────────────────────────────────
 function renderParcelas(){
   const fat=FATURAS.find(f=>f.id===faturaIds.parcelas)||FATURAS[0];
@@ -636,18 +705,39 @@ function renderParcelas(){
   const active=parcelasData.map(p=>parcelaForMonth(p,year,month)).filter(Boolean);
   const total=active.reduce((s,p)=>s+p.amount,0);
 
+  // Apply search and sort
+  const search=(document.getElementById('parc-search')||{}).value||'';
+  const sort=(document.getElementById('parc-sort')||{}).value||'default';
+  let display=active.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()));
+  if(sort==='az')display.sort((a,b)=>a.name.localeCompare(b.name,'pt'));
+  else if(sort==='valor')display.sort((a,b)=>b.amount-a.amount);
+
   let html=`<div class="parcelas-total-card"><div><div class="parcelas-total-label">Total em parcelas — ${fat.label}</div></div><div class="parcelas-total-val">${fmt(total)}</div></div>`;
-  if(!active.length){html+=`<div class="empty"><div class="empty-icon">💳</div>Nenhuma parcela ativa nesta fatura.</div>`;}
+
+  // Search + sort controls
+  html+=`<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
+    <input id="parc-search" type="search" placeholder="🔍 Buscar parcela..." value="${search}"
+      oninput="renderParcelas()"
+      style="flex:1;background:#18181f;border:1px solid #2a2a35;color:#f0ede8;border-radius:10px;padding:9px 12px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;" />
+    <select id="parc-sort" onchange="renderParcelas()"
+      style="background:#18181f;border:1px solid #2a2a35;color:#888;border-radius:10px;padding:9px 10px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;">
+      <option value="default"${sort==='default'?' selected':''}>Padrão</option>
+      <option value="az"${sort==='az'?' selected':''}>A → Z</option>
+      <option value="valor"${sort==='valor'?' selected':''}>Maior valor</option>
+    </select>
+  </div>`;
+
+  if(!display.length){html+=`<div class="empty"><div class="empty-icon">💳</div>${search?'Nenhuma parcela encontrada.':'Nenhuma parcela ativa nesta fatura.'}</div>`;}
   else{
     html+=`<div class="day-group">`;
-    active.forEach(p=>{
+    display.forEach(p=>{
       const isLast=p.displayCurrent===p.displayTotal;
+      const isPenult=p.displayCurrent===p.displayTotal-1;
       html+=`<div class="parcela-row">
         <div class="parcela-info">
           <div class="parcela-name">💳 ${p.name}</div>
-          <div class="parcela-prog">${p.displayCurrent}/${p.displayTotal}${isLast?' · última':''}`;
-      if(p.displayCurrent===p.displayTotal-1)html+=` · <span style="color:#f59e0b">penúltima</span>`;
-      html+=`</div></div>
+          <div class="parcela-prog">${p.displayCurrent}/${p.displayTotal}${isLast?' · <span style="color:#f87171">última</span>':isPenult?' · <span style="color:#f59e0b">penúltima</span>':''}</div>
+        </div>
         <div class="parcela-amount">${fmt(p.amount)}</div>
         <button class="action-btn" onclick="editParcelaById('${p.id}')">✏️</button>
         <button class="action-btn" onclick="deleteParcelaById('${p.id}')">🗑️</button>
@@ -680,7 +770,8 @@ function renderResumo(){
   const transpRafaTot=transpRafaF.reduce((s,e)=>s+e.amount,0);
   const farmTot=farmF.reduce((s,e)=>s+e.amount,0);
   const parcelaTot=activeP.reduce((s,p)=>s+p.amount,0);
-  const grandTotal=alimTot+transpTot+transpRafaTot+farmTot+parcelaTot;
+  const fixosTot=fixosData.reduce((s,f)=>s+f.amount,0);
+  const grandTotal=alimTot+transpTot+transpRafaTot+farmTot+fixosTot+parcelaTot;
 
   const alimByCat={};alimF.forEach(e=>{let cat=e.category==='mercado'?'feira':e.category;alimByCat[cat]=(alimByCat[cat]||0)+e.amount;});
   const transpByCat={};transpF.forEach(e=>{transpByCat[e.category]=(transpByCat[e.category]||0)+e.amount;});
@@ -703,6 +794,11 @@ function renderResumo(){
   html+=`<div class="resumo-card"><div class="resumo-card-title">💊 Farmácia — ${fmt(farmTot)}</div>`;
   if(!farmF.length){html+=`<div class="resumo-row"><span class="resumo-row-label" style="color:#555">Nenhum gasto nesta fatura</span></div>`;}
   else{html+=`<div class="resumo-row"><span class="resumo-row-label">💊 Total</span><span class="resumo-row-val" style="color:#f472b6">${fmt(farmTot)}</span></div>`;}
+  html+=`</div>`;
+
+  html+=`<div class="resumo-card"><div class="resumo-card-title">📌 Fixos — ${fmt(fixosTot)}</div>`;
+  if(!fixosData.length){html+=`<div class="resumo-row"><span class="resumo-row-label" style="color:#555">Nenhum gasto fixo cadastrado</span></div>`;}
+  else{fixosData.forEach(f=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${f.name}</span><span class="resumo-row-val" style="color:#38bdf8">${fmt(f.amount)}</span></div>`;});}
   html+=`</div>`;
 
   html+=`<div class="resumo-card"><div class="resumo-card-title">💳 Parcelas — ${fmt(parcelaTot)}</div>`;
@@ -909,7 +1005,7 @@ function openBackup(mode){
   if(mode==='export'){
     document.getElementById('backup-title').textContent='Exportar backup';
     document.getElementById('backup-desc').textContent='Copie este texto e cole nas Notas. Use "Importar" para restaurar.';
-    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,farm:farmaciaExpenses,parcelas:parcelasData,dates:dateOverrides});
+    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,farm:farmaciaExpenses,fixos:fixosData,parcelas:parcelasData,dates:dateOverrides});
     ta.readOnly=true;btn.textContent='Copiar';
   } else {
     document.getElementById('backup-title').textContent='Importar backup';
@@ -935,12 +1031,14 @@ function handleBackupAction(){
       transpExpenses=Array.isArray(data.transp)?data.transp:[];
       transpRafaExpenses=Array.isArray(data.transpRafa)?data.transpRafa:[];
       farmaciaExpenses=Array.isArray(data.farm)?data.farm:[];
+      fixosData=Array.isArray(data.fixos)?data.fixos:[];
       parcelasData=Array.isArray(data.parcelas)?data.parcelas:SEED_PARCELAS;
       if(data.dates)dateOverrides=data.dates;else if(data.closing){}// legacy ignore
       save('gastos-alim-v1',alimExpenses);
       save('gastos-transp-v1',transpExpenses);
       save('gastos-transp-rafa-v1',transpRafaExpenses);
       save('gastos-farm-v1',farmaciaExpenses);
+      save('gastos-fixos-v1',fixosData);
       save('gastos-parcelas-v2',parcelasData);
       save('gastos-dates-v1',dateOverrides);
       FATURAS=generateFaturas();
