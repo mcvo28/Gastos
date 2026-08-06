@@ -123,6 +123,7 @@ textarea.field{resize:none;line-height:1.5;}
   <div class="tab" onclick="switchTab('parcelas')"><span class="tab-icon">💳</span><span class="tab-label">Parcelas</span></div>
   <div class="tab" onclick="switchTab('resumo')"><span class="tab-icon">📊</span><span class="tab-label">Resumo</span></div>
 </div>
+<div id="sync-indicator" style="text-align:center;padding:4px 0;background:#0f0f13;color:#555;font-family:'DM Sans',sans-serif;border-bottom:1px solid #1e1e28;min-height:22px;"></div>
 
 <!-- ALIMENTAÇÃO -->
 <div class="section active" id="sec-alimentacao">
@@ -350,6 +351,78 @@ const TRANSP_CATS={
 function load(key,def){try{const v=localStorage.getItem(key);return v!==null?JSON.parse(v):def;}catch{return def;}}
 function save(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catch{}}
 
+// ── Supabase sync ─────────────────────────────────────────────────────────────
+const SB_URL='https://ereguiqvcdzrepnqefqz.supabase.co';
+const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVyZWd1aXF2Y2R6cmVwbnFlZnF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYwMDc5MjAsImV4cCI6MjEwMTU4MzkyMH0.jQckv12lVsj4-YW02Hl1mGcXvyKEZ33rWRykKoiAjWc';
+const SB_HEADERS={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'resolution=merge-duplicates'};
+
+let syncTimeout=null;
+let syncStatus='idle'; // idle | syncing | ok | error
+
+function setSyncStatus(s){
+  syncStatus=s;
+  const el=document.getElementById('sync-indicator');
+  if(!el)return;
+  const map={idle:['⚪',''],syncing:['🔄','Sincronizando...'],ok:['🟢','Salvo na nuvem'],error:['🔴','Erro ao sincronizar']};
+  const [icon,text]=map[s]||map.idle;
+  el.innerHTML=`<span style="font-size:11px">${icon} ${text}</span>`;
+}
+
+async function syncToCloud(){
+  setSyncStatus('syncing');
+  try{
+    const rows=[
+      {id:'alim',tipo:'alim',dados:alimExpenses},
+      {id:'transp',tipo:'transp',dados:transpExpenses},
+      {id:'transp_rafa',tipo:'transp_rafa',dados:transpRafaExpenses},
+      {id:'farm',tipo:'farm',dados:farmaciaExpenses},
+      {id:'fixos',tipo:'fixos',dados:fixosData},
+      {id:'parcelas',tipo:'parcelas',dados:parcelasData},
+      {id:'dates',tipo:'dates',dados:dateOverrides},
+    ];
+    const res=await fetch(`${SB_URL}/rest/v1/gastos`,{method:'POST',headers:SB_HEADERS,body:JSON.stringify(rows)});
+    if(!res.ok)throw new Error();
+    setSyncStatus('ok');
+    setTimeout(()=>setSyncStatus('idle'),3000);
+  }catch{setSyncStatus('error');}
+}
+
+async function loadFromCloud(){
+  try{
+    const res=await fetch(`${SB_URL}/rest/v1/gastos?select=*`,{headers:{...SB_HEADERS,'Prefer':''}});
+    if(!res.ok)return false;
+    const rows=await res.json();
+    if(!rows||!rows.length)return false;
+    const get=(id,def)=>{const r=rows.find(x=>x.id===id);return r?r.dados:def;};
+    alimExpenses=get('alim',[]);
+    transpExpenses=get('transp',[]);
+    transpRafaExpenses=get('transp_rafa',[]);
+    farmaciaExpenses=get('farm',[]);
+    fixosData=get('fixos',[]);
+    parcelasData=get('parcelas',[]).length?get('parcelas',[]):parcelasData;
+    dateOverrides=get('dates',{});
+    // Persist locally too
+    saveAndSync('gastos-alim-v1',alimExpenses);
+    saveAndSync('gastos-transp-v1',transpExpenses);
+    saveAndSync('gastos-transp-rafa-v1',transpRafaExpenses);
+    saveAndSync('gastos-farm-v1',farmaciaExpenses);
+    saveAndSync('gastos-fixos-v1',fixosData);
+    saveAndSync('gastos-parcelas-v2',parcelasData);
+    saveAndSync('gastos-dates-v1',dateOverrides);
+    FATURAS=generateFaturas();
+    return true;
+  }catch{return false;}
+}
+
+function scheduleSyncToCloud(){
+  clearTimeout(syncTimeout);
+  syncTimeout=setTimeout(syncToCloud,1500);
+}
+
+// Wrap save to also trigger cloud sync
+const _save=save;
+function saveAndSync(key,data){_save(key,data);scheduleSyncToCloud();}
+
 let alimExpenses=load('gastos-alim-v1',[]);
 let transpExpenses=load('gastos-transp-v1',[]);
 let transpRafaExpenses=load('gastos-transp-rafa-v1',[]);
@@ -447,7 +520,7 @@ const SEED_PARCELAS=[
 
 if(parcelasData.length===0){
   parcelasData=SEED_PARCELAS;
-  save('gastos-parcelas-v2',parcelasData);
+  saveAndSync('gastos-parcelas-v2',parcelasData);
 }
 
 // ── Faturas ───────────────────────────────────────────────────────────────────
@@ -684,12 +757,12 @@ function handleFixoSubmit(){
   const entry={id:editFixoId||String(Date.now()),name,amount};
   if(editFixoId)fixosData=fixosData.map(f=>f.id===editFixoId?entry:f);
   else fixosData.push(entry);
-  save('gastos-fixos-v1',fixosData);
+  saveAndSync('gastos-fixos-v1',fixosData);
   closeOverlay('overlay-fixo');
   renderFixos();
 }
 function editFixo(id){const f=fixosData.find(f=>f.id===id);if(f)openFixoForm(f);}
-function deleteFixo(id){fixosData=fixosData.filter(f=>f.id!==id);save('gastos-fixos-v1',fixosData);renderFixos();}
+function deleteFixo(id){fixosData=fixosData.filter(f=>f.id!==id);saveAndSync('gastos-fixos-v1',fixosData);renderFixos();}
 
 // ── Render parcelas ───────────────────────────────────────────────────────────
 function renderParcelas(){
@@ -829,7 +902,7 @@ function handleDateEdit(){
   if(!dateOverrides[editingFatId])dateOverrides[editingFatId]={};
   dateOverrides[editingFatId].start=start;
   dateOverrides[editingFatId].end=end;
-  save('gastos-dates-v1',dateOverrides);
+  saveAndSync('gastos-dates-v1',dateOverrides);
   FATURAS=generateFaturas();
   closeOverlay('overlay-date');
   renderSection(currentTab);
@@ -889,16 +962,16 @@ function handleSubmit(){
   const entry={id:editId||String(Date.now()),name,amount,category,date};
   if(formSection==='alimentacao'){
     if(editId)alimExpenses=alimExpenses.map(e=>e.id===editId?entry:e);else alimExpenses.push(entry);
-    save('gastos-alim-v1',alimExpenses);
+    saveAndSync('gastos-alim-v1',alimExpenses);
   } else if(formSection==='farmacia'){
     if(editId)farmaciaExpenses=farmaciaExpenses.map(e=>e.id===editId?entry:e);else farmaciaExpenses.push(entry);
-    save('gastos-farm-v1',farmaciaExpenses);
+    saveAndSync('gastos-farm-v1',farmaciaExpenses);
   } else if(currentPerson==='rafa'){
     if(editId)transpRafaExpenses=transpRafaExpenses.map(e=>e.id===editId?entry:e);else transpRafaExpenses.push(entry);
-    save('gastos-transp-rafa-v1',transpRafaExpenses);
+    saveAndSync('gastos-transp-rafa-v1',transpRafaExpenses);
   } else {
     if(editId)transpExpenses=transpExpenses.map(e=>e.id===editId?entry:e);else transpExpenses.push(entry);
-    save('gastos-transp-v1',transpExpenses);
+    saveAndSync('gastos-transp-v1',transpExpenses);
   }
   const match=FATURAS.find(f=>date>=f.start&&date<=f.end);
   if(match)faturaIds[formSection]=match.id;
@@ -913,10 +986,10 @@ function editExpense(section,id){
 }
 
 function deleteExpense(section,id){
-  if(section==='alimentacao'){alimExpenses=alimExpenses.filter(e=>e.id!==id);save('gastos-alim-v1',alimExpenses);}
-  else if(section==='farmacia'){farmaciaExpenses=farmaciaExpenses.filter(e=>e.id!==id);save('gastos-farm-v1',farmaciaExpenses);}
-  else if(currentPerson==='rafa'){transpRafaExpenses=transpRafaExpenses.filter(e=>e.id!==id);save('gastos-transp-rafa-v1',transpRafaExpenses);}
-  else{transpExpenses=transpExpenses.filter(e=>e.id!==id);save('gastos-transp-v1',transpExpenses);}
+  if(section==='alimentacao'){alimExpenses=alimExpenses.filter(e=>e.id!==id);saveAndSync('gastos-alim-v1',alimExpenses);}
+  else if(section==='farmacia'){farmaciaExpenses=farmaciaExpenses.filter(e=>e.id!==id);saveAndSync('gastos-farm-v1',farmaciaExpenses);}
+  else if(currentPerson==='rafa'){transpRafaExpenses=transpRafaExpenses.filter(e=>e.id!==id);saveAndSync('gastos-transp-rafa-v1',transpRafaExpenses);}
+  else{transpExpenses=transpExpenses.filter(e=>e.id!==id);saveAndSync('gastos-transp-v1',transpExpenses);}
   renderSection(section);
 }
 
@@ -946,13 +1019,13 @@ function handleParcelaSubmit(){
   const entry={id:editParcelaId||String(Date.now()),name,amount,current,total,refYear,refMonth};
   if(editParcelaId)parcelasData=parcelasData.map(p=>p.id===editParcelaId?entry:p);
   else parcelasData.push(entry);
-  save('gastos-parcelas-v2',parcelasData);
+  saveAndSync('gastos-parcelas-v2',parcelasData);
   closeOverlay('overlay-parcela');
   renderParcelas();
 }
 
 function editParcelaById(id){const p=parcelasData.find(p=>p.id===id);if(p)openParcelaForm(p);}
-function deleteParcelaById(id){parcelasData=parcelasData.filter(p=>p.id!==id);save('gastos-parcelas-v2',parcelasData);renderParcelas();}
+function deleteParcelaById(id){parcelasData=parcelasData.filter(p=>p.id!==id);saveAndSync('gastos-parcelas-v2',parcelasData);renderParcelas();}
 
 // ── AI Import ─────────────────────────────────────────────────────────────────
 let aiSection='alimentacao';
@@ -985,10 +1058,10 @@ function handleAiImport(){
   const errEl=document.getElementById('ai-error');
   const parsed=parseInput(text,aiSection);
   if(!parsed.length){errEl.textContent="Não encontrei nenhum gasto. Ex: Paul's - 43,59";errEl.style.display='block';return;}
-  if(aiSection==='alimentacao'){alimExpenses.push(...parsed);save('gastos-alim-v1',alimExpenses);}
-  else if(aiSection==='farmacia'){farmaciaExpenses.push(...parsed);save('gastos-farm-v1',farmaciaExpenses);}
-  else if(currentPerson==='rafa'){transpRafaExpenses.push(...parsed);save('gastos-transp-rafa-v1',transpRafaExpenses);}
-  else{transpExpenses.push(...parsed);save('gastos-transp-v1',transpExpenses);}
+  if(aiSection==='alimentacao'){alimExpenses.push(...parsed);saveAndSync('gastos-alim-v1',alimExpenses);}
+  else if(aiSection==='farmacia'){farmaciaExpenses.push(...parsed);saveAndSync('gastos-farm-v1',farmaciaExpenses);}
+  else if(currentPerson==='rafa'){transpRafaExpenses.push(...parsed);saveAndSync('gastos-transp-rafa-v1',transpRafaExpenses);}
+  else{transpExpenses.push(...parsed);saveAndSync('gastos-transp-v1',transpExpenses);}
   const match=FATURAS.find(f=>parsed[0].date>=f.start&&parsed[0].date<=f.end);
   if(match)faturaIds[aiSection]=match.id;
   closeOverlay('overlay-ai');
@@ -1034,13 +1107,13 @@ function handleBackupAction(){
       fixosData=Array.isArray(data.fixos)?data.fixos:[];
       parcelasData=Array.isArray(data.parcelas)?data.parcelas:SEED_PARCELAS;
       if(data.dates)dateOverrides=data.dates;else if(data.closing){}// legacy ignore
-      save('gastos-alim-v1',alimExpenses);
-      save('gastos-transp-v1',transpExpenses);
-      save('gastos-transp-rafa-v1',transpRafaExpenses);
-      save('gastos-farm-v1',farmaciaExpenses);
-      save('gastos-fixos-v1',fixosData);
-      save('gastos-parcelas-v2',parcelasData);
-      save('gastos-dates-v1',dateOverrides);
+      saveAndSync('gastos-alim-v1',alimExpenses);
+      saveAndSync('gastos-transp-v1',transpExpenses);
+      saveAndSync('gastos-transp-rafa-v1',transpRafaExpenses);
+      saveAndSync('gastos-farm-v1',farmaciaExpenses);
+      saveAndSync('gastos-fixos-v1',fixosData);
+      saveAndSync('gastos-parcelas-v2',parcelasData);
+      saveAndSync('gastos-dates-v1',dateOverrides);
       FATURAS=generateFaturas();
       errEl.style.display='none';
       closeOverlay('overlay-backup');
@@ -1051,7 +1124,18 @@ function handleBackupAction(){
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.getElementById('f-date').value=today();
-renderSection('alimentacao');
+
+// Try to load from cloud first, fall back to localStorage
+setSyncStatus('syncing');
+loadFromCloud().then(ok=>{
+  if(ok){
+    setSyncStatus('ok');
+    setTimeout(()=>setSyncStatus('idle'),3000);
+  } else {
+    setSyncStatus('idle');
+  }
+  renderSection('alimentacao');
+});
 </script>
 </body>
 </html>
