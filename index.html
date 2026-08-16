@@ -9,6 +9,7 @@
 <title>Gastos</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 :root{--bg:#0f0f13;--surface:#18181f;--border:#2a2a35;--text:#f0ede8;--muted:#666;--accent:#f97316;--safe-top:env(safe-area-inset-top,0px);--safe-bottom:env(safe-area-inset-bottom,0px);}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
@@ -95,6 +96,21 @@ body{padding-top:var(--safe-top);}
 .backup-btns{display:flex;gap:10px;}
 .backup-btn{flex:1;padding:11px;border-radius:10px;font-size:13px;font-weight:600;border:1px solid var(--border);background:var(--bg);color:var(--text);cursor:pointer;}
 .backup-btn.primary{background:var(--accent);border:none;color:#fff;}
+
+/* Login screen */
+.login-screen{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;}
+.login-title{font-family:'Playfair Display',serif;font-size:28px;font-weight:700;color:var(--text);margin-bottom:4px;}
+.login-sub{font-family:'Playfair Display',serif;font-size:18px;font-weight:400;color:var(--accent);margin-bottom:40px;}
+.login-box{width:100%;max-width:360px;display:flex;flex-direction:column;gap:12px;}
+.login-field{width:100%;background:var(--surface);border:1px solid var(--border);color:var(--text);border-radius:12px;padding:14px 16px;font-size:15px;font-family:'DM Sans',sans-serif;outline:none;}
+.login-field:focus{border-color:var(--accent);}
+.login-btn{width:100%;padding:14px;background:var(--accent);color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;transition:transform .1s;}
+.login-btn:active{transform:scale(.98);}
+.login-btn.secondary{background:#1e1e28;color:var(--muted);border:1px solid var(--border);}
+.login-err{font-size:13px;color:#f87171;text-align:center;min-height:18px;}
+.login-msg{font-size:13px;color:#4ade80;text-align:center;}
+.logout-btn{background:none;border:none;color:var(--muted);font-size:12px;font-family:'DM Sans',sans-serif;cursor:pointer;padding:4px 8px;}
+.logout-btn:hover{color:#f87171;}
 .overlay{position:fixed;inset:0;background:rgba(0,0,0,.75);display:flex;align-items:flex-end;justify-content:center;z-index:200;backdrop-filter:blur(4px);opacity:0;pointer-events:none;transition:opacity .2s;}
 .overlay.open{opacity:1;pointer-events:all;}
 .modal{background:var(--surface);border-radius:24px 24px 0 0;padding:24px 20px;padding-bottom:calc(24px + var(--safe-bottom));width:100%;max-width:480px;border:1px solid var(--border);border-bottom:none;transform:translateY(40px);transition:transform .25s;}
@@ -115,12 +131,37 @@ textarea.field{resize:none;line-height:1.5;}
 </head>
 <body>
 
+<!-- Login Screen -->
+<div class="login-screen" id="login-screen">
+  <div class="login-title">Gastos</div>
+  <div class="login-sub">Controle financeiro</div>
+  <div class="login-box" id="login-box">
+    <input class="login-field" id="login-email" type="email" placeholder="Email" autocomplete="email" />
+    <input class="login-field" id="login-pass" type="password" placeholder="Senha" autocomplete="current-password" />
+    <div class="login-err" id="login-err"></div>
+    <button class="login-btn" onclick="handleLogin()">Entrar</button>
+    <button class="login-btn secondary" onclick="showSignup()">Criar conta</button>
+  </div>
+  <div class="login-box" id="signup-box" style="display:none">
+    <input class="login-field" id="signup-email" type="email" placeholder="Email" autocomplete="email" />
+    <input class="login-field" id="signup-pass" type="password" placeholder="Senha (mín. 6 caracteres)" />
+    <div class="login-err" id="signup-err"></div>
+    <div class="login-msg" id="signup-msg"></div>
+    <button class="login-btn" onclick="handleSignup()">Criar conta</button>
+    <button class="login-btn secondary" onclick="showLogin()">Voltar</button>
+  </div>
+</div>
+
+<!-- App (hidden until logged in) -->
+<div id="app" style="display:none">
+
 <div class="tabs">
   <div class="tab active" onclick="switchTab('alimentacao')"><span class="tab-icon">🍽️</span><span class="tab-label">Aliment.</span></div>
   <div class="tab" onclick="switchTab('transporte')"><span class="tab-icon">🚗</span><span class="tab-label">Transp.</span></div>
   <div class="tab" onclick="switchTab('farmacia')"><span class="tab-icon">💊</span><span class="tab-label">Farmácia</span></div>
   <div class="tab" onclick="switchTab('fixos')"><span class="tab-icon">📌</span><span class="tab-label">Fixos</span></div>
   <div class="tab" onclick="switchTab('parcelas')"><span class="tab-icon">💳</span><span class="tab-label">Parcelas</span></div>
+  <div class="tab" onclick="switchTab('reserva')"><span class="tab-icon">💰</span><span class="tab-label">Reserva</span></div>
   <div class="tab" onclick="switchTab('resumo')"><span class="tab-icon">📊</span><span class="tab-label">Resumo</span></div>
 </div>
 <div id="sync-indicator" style="text-align:center;padding:4px 0;background:#0f0f13;color:#555;font-family:'DM Sans',sans-serif;border-bottom:1px solid #1e1e28;min-height:22px;"></div>
@@ -319,7 +360,35 @@ textarea.field{resize:none;line-height:1.5;}
   </div>
 </div>
 
-<!-- Backup Modal -->
+<!-- RESERVA -->
+<div class="section" id="sec-reserva">
+  <div class="parcelas-header">
+    <div class="title-row">
+      <div><div class="title-main">Reserva</div><div class="title-sub">Financeira</div></div>
+      <div class="btn-row">
+        <button class="pill btn-new" onclick="openReservaForm()">+ Registrar</button>
+        <button class="logout-btn" onclick="handleLogout()">Sair</button>
+      </div>
+    </div>
+  </div>
+  <div class="list" id="reserva-list"></div>
+</div>
+
+</div><!-- end #app -->
+
+<!-- Reserva Form Modal -->
+<div class="overlay" id="overlay-reserva">
+  <div class="modal">
+    <div class="modal-title" id="reserva-form-title">Registrar saldo</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:12px;line-height:1.6">Informe o saldo total da sua reserva neste mês.</p>
+    <input class="field" id="rv-month" type="month" style="-webkit-appearance:none;color-scheme:dark;" />
+    <input class="field" id="rv-saldo" type="number" step="0.01" min="0" placeholder="Saldo (R$)" />
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeOverlay('overlay-reserva')">Cancelar</button>
+      <button class="btn-confirm" onclick="handleReservaSubmit()">Salvar</button>
+    </div>
+  </div>
+</div>
 <div class="overlay" id="overlay-backup">
   <div class="modal">
     <div class="modal-title" id="backup-title">Backup</div>
@@ -351,13 +420,21 @@ const TRANSP_CATS={
 function load(key,def){try{const v=localStorage.getItem(key);return v!==null?JSON.parse(v):def;}catch{return def;}}
 function save(key,data){try{localStorage.setItem(key,JSON.stringify(data));}catch{}}
 
-// ── Supabase sync ─────────────────────────────────────────────────────────────
+// ── Supabase ──────────────────────────────────────────────────────────────────
 const SB_URL='https://ereguiqvcdzrepnqefqz.supabase.co';
 const SB_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVyZWd1aXF2Y2R6cmVwbnFlZnF6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODYwMDc5MjAsImV4cCI6MjEwMTU4MzkyMH0.jQckv12lVsj4-YW02Hl1mGcXvyKEZ33rWRykKoiAjWc';
+const sb=supabase.createClient(SB_URL,SB_KEY);
+let currentUser=null;
 const SB_HEADERS={'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY,'Prefer':'resolution=merge-duplicates'};
 
+async function getAuthHeaders(){
+  const {data:{session}}=await sb.auth.getSession();
+  const token=session?session.access_token:SB_KEY;
+  return {'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+token,'Prefer':'resolution=merge-duplicates'};
+}
+
 let syncTimeout=null;
-let syncStatus='idle'; // idle | syncing | ok | error
+let syncStatus='idle';
 
 function setSyncStatus(s){
   syncStatus=s;
@@ -371,6 +448,7 @@ function setSyncStatus(s){
 async function syncToCloud(){
   setSyncStatus('syncing');
   try{
+    const headers=await getAuthHeaders();
     const rows=[
       {id:'alim',tipo:'alim',dados:alimExpenses},
       {id:'transp',tipo:'transp',dados:transpExpenses},
@@ -380,7 +458,7 @@ async function syncToCloud(){
       {id:'parcelas',tipo:'parcelas',dados:parcelasData},
       {id:'dates',tipo:'dates',dados:dateOverrides},
     ];
-    const res=await fetch(`${SB_URL}/rest/v1/gastos`,{method:'POST',headers:SB_HEADERS,body:JSON.stringify(rows)});
+    const res=await fetch(`${SB_URL}/rest/v1/gastos`,{method:'POST',headers,body:JSON.stringify(rows)});
     if(!res.ok)throw new Error();
     setSyncStatus('ok');
     setTimeout(()=>setSyncStatus('idle'),3000);
@@ -389,7 +467,8 @@ async function syncToCloud(){
 
 async function loadFromCloud(){
   try{
-    const res=await fetch(`${SB_URL}/rest/v1/gastos?select=*`,{headers:{...SB_HEADERS,'Prefer':''}});
+    const headers=await getAuthHeaders();
+    const res=await fetch(`${SB_URL}/rest/v1/gastos?select=*`,{headers:{...headers,'Prefer':''}});
     if(!res.ok)return false;
     const rows=await res.json();
     if(!rows||!rows.length)return false;
@@ -401,14 +480,13 @@ async function loadFromCloud(){
     fixosData=get('fixos',[]);
     parcelasData=get('parcelas',[]).length?get('parcelas',[]):parcelasData;
     dateOverrides=get('dates',{});
-    // Persist locally too
-    saveAndSync('gastos-alim-v1',alimExpenses);
-    saveAndSync('gastos-transp-v1',transpExpenses);
-    saveAndSync('gastos-transp-rafa-v1',transpRafaExpenses);
-    saveAndSync('gastos-farm-v1',farmaciaExpenses);
-    saveAndSync('gastos-fixos-v1',fixosData);
-    saveAndSync('gastos-parcelas-v2',parcelasData);
-    saveAndSync('gastos-dates-v1',dateOverrides);
+    _save('gastos-alim-v1',alimExpenses);
+    _save('gastos-transp-v1',transpExpenses);
+    _save('gastos-transp-rafa-v1',transpRafaExpenses);
+    _save('gastos-farm-v1',farmaciaExpenses);
+    _save('gastos-fixos-v1',fixosData);
+    _save('gastos-parcelas-v2',parcelasData);
+    _save('gastos-dates-v1',dateOverrides);
     FATURAS=generateFaturas();
     return true;
   }catch{return false;}
@@ -778,21 +856,20 @@ function renderParcelas(){
   const active=parcelasData.map(p=>parcelaForMonth(p,year,month)).filter(Boolean);
   const total=active.reduce((s,p)=>s+p.amount,0);
 
-  // Apply search and sort
-  const search=(document.getElementById('parc-search')||{}).value||'';
-  const sort=(document.getElementById('parc-sort')||{}).value||'default';
+  // Apply search and sort using persistent state
+  const search=parcelasSearch;
+  const sort=parcelasSort;
   let display=active.filter(p=>p.name.toLowerCase().includes(search.toLowerCase()));
   if(sort==='az')display.sort((a,b)=>a.name.localeCompare(b.name,'pt'));
   else if(sort==='valor')display.sort((a,b)=>b.amount-a.amount);
 
   let html=`<div class="parcelas-total-card"><div><div class="parcelas-total-label">Total em parcelas — ${fat.label}</div></div><div class="parcelas-total-val">${fmt(total)}</div></div>`;
 
-  // Search + sort controls
+  // Search + sort controls (static, not in innerHTML loop)
   html+=`<div style="display:flex;gap:8px;margin-bottom:14px;align-items:center;">
-    <input id="parc-search" type="search" placeholder="🔍 Buscar parcela..." value="${search}"
-      oninput="renderParcelas()"
+    <input id="parc-search" type="search" placeholder="🔍 Buscar parcela..." value="${search.replace(/"/g,'&quot;')}"
       style="flex:1;background:#18181f;border:1px solid #2a2a35;color:#f0ede8;border-radius:10px;padding:9px 12px;font-size:13px;font-family:'DM Sans',sans-serif;outline:none;" />
-    <select id="parc-sort" onchange="renderParcelas()"
+    <select id="parc-sort"
       style="background:#18181f;border:1px solid #2a2a35;color:#888;border-radius:10px;padding:9px 10px;font-size:12px;font-family:'DM Sans',sans-serif;outline:none;">
       <option value="default"${sort==='default'?' selected':''}>Padrão</option>
       <option value="az"${sort==='az'?' selected':''}>A → Z</option>
@@ -819,6 +896,15 @@ function renderParcelas(){
     html+=`</div>`;
   }
   document.getElementById('parcelas-list').innerHTML=html;
+
+  // Attach events after render to avoid focus loss
+  const searchEl=document.getElementById('parc-search');
+  const sortEl=document.getElementById('parc-sort');
+  if(searchEl){
+    searchEl.addEventListener('input',function(){parcelasSearch=this.value;renderParcelas();});
+    if(document.activeElement!==searchEl&&parcelasSearch)searchEl.focus();
+  }
+  if(sortEl)sortEl.addEventListener('change',function(){parcelasSort=this.value;renderParcelas();});
 }
 
 // ── Render resumo ─────────────────────────────────────────────────────────────
@@ -1122,19 +1208,155 @@ function handleBackupAction(){
   }
 }
 
-// ── Init ──────────────────────────────────────────────────────────────────────
-document.getElementById('f-date').value=today();
+// ── Auth ──────────────────────────────────────────────────────────────────────
+function showLogin(){
+  document.getElementById('login-box').style.display='flex';
+  document.getElementById('signup-box').style.display='none';
+}
+function showSignup(){
+  document.getElementById('login-box').style.display='none';
+  document.getElementById('signup-box').style.display='flex';
+}
 
-// Try to load from cloud first, fall back to localStorage
-setSyncStatus('syncing');
-loadFromCloud().then(ok=>{
-  if(ok){
-    setSyncStatus('ok');
-    setTimeout(()=>setSyncStatus('idle'),3000);
-  } else {
-    setSyncStatus('idle');
-  }
+async function handleLogin(){
+  const email=document.getElementById('login-email').value.trim();
+  const pass=document.getElementById('login-pass').value;
+  document.getElementById('login-err').textContent='';
+  const {error}=await sb.auth.signInWithPassword({email,password:pass});
+  if(error){document.getElementById('login-err').textContent='Email ou senha incorretos.';return;}
+  startApp();
+}
+
+async function handleSignup(){
+  const email=document.getElementById('signup-email').value.trim();
+  const pass=document.getElementById('signup-pass').value;
+  document.getElementById('signup-err').textContent='';
+  document.getElementById('signup-msg').textContent='';
+  const {error}=await sb.auth.signUp({email,password:pass,options:{emailRedirectTo:'https://mcvo28.github.io/Gastos'}});
+  if(error){document.getElementById('signup-err').textContent=error.message;return;}
+  document.getElementById('signup-msg').textContent='Verifique seu email para confirmar o cadastro!';
+}
+
+async function handleLogout(){
+  await sb.auth.signOut();
+  document.getElementById('app').style.display='none';
+  document.getElementById('login-screen').style.display='flex';
+  showLogin();
+}
+
+async function startApp(){
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+  document.getElementById('f-date').value=today();
+  const now=new Date();
+  document.getElementById('rv-month').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  setSyncStatus('syncing');
+  const ok=await loadFromCloud();
+  setSyncStatus(ok?'ok':'idle');
+  if(ok)setTimeout(()=>setSyncStatus('idle'),3000);
   renderSection('alimentacao');
+}
+
+// ── Reserva ───────────────────────────────────────────────────────────────────
+let reservaData=[];
+
+async function loadReserva(){
+  const {data,error}=await sb.from('reserva').select('*').order('ano').order('mes');
+  if(!error&&data)reservaData=data;
+}
+
+async function saveReserva(ano,mes,saldo){
+  const {data:{session}}=await sb.auth.getSession();
+  if(!session)return;
+  await sb.from('reserva').upsert({user_id:session.user.id,ano,mes,saldo},{onConflict:'user_id,ano,mes'});
+}
+
+async function deleteReserva(id){
+  await sb.from('reserva').delete().eq('id',id);
+}
+
+function openReservaForm(){
+  const now=new Date();
+  document.getElementById('rv-month').value=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  document.getElementById('rv-saldo').value='';
+  openOverlay('overlay-reserva');
+}
+
+async function handleReservaSubmit(){
+  const monthVal=document.getElementById('rv-month').value;
+  const saldo=parseFloat(document.getElementById('rv-saldo').value);
+  if(!monthVal||!saldo)return;
+  const [ano,mes]=monthVal.split('-').map(Number);
+  await saveReserva(ano,mes,saldo);
+  await loadReserva();
+  closeOverlay('overlay-reserva');
+  renderReserva();
+}
+
+async function handleDeleteReserva(id){
+  await deleteReserva(id);
+  await loadReserva();
+  renderReserva();
+}
+
+function renderReserva(){
+  const MONTH_NAMES=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  let html='';
+  if(!reservaData.length){
+    html=`<div class="empty"><div class="empty-icon">💰</div>Nenhum saldo registrado ainda.<br><br>Toque em + Registrar para começar.</div>`;
+  } else {
+    const sorted=[...reservaData].sort((a,b)=>b.ano-a.ano||b.mes-a.mes);
+    html+=`<div class="day-group">`;
+    sorted.forEach((r,i)=>{
+      const prev=sorted[i+1];
+      const diff=prev?r.saldo-prev.saldo:null;
+      const pct=prev&&prev.saldo?((r.saldo-prev.saldo)/prev.saldo*100):null;
+      const color=diff===null?'#888':diff>=0?'#4ade80':'#f87171';
+      const arrow=diff===null?'':diff>=0?'↑':'↓';
+      html+=`<div class="parcela-row">
+        <div class="parcela-info">
+          <div class="parcela-name">💰 ${MONTH_NAMES[r.mes-1]} ${r.ano}</div>
+          ${diff!==null?`<div class="parcela-prog" style="color:${color}">${arrow} ${fmt(Math.abs(diff))} (${Math.abs(pct).toFixed(1)}%)</div>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div class="parcela-amount" style="color:#a78bfa">${fmt(r.saldo)}</div>
+          <button class="action-btn" onclick="handleDeleteReserva('${r.id}')">🗑️</button>
+        </div>
+      </div>`;
+    });
+    html+=`</div>`;
+  }
+  document.getElementById('reserva-list').innerHTML=html;
+}
+
+// ── Fix parcelas search bug (keep input outside innerHTML) ────────────────────
+let parcelasSearch='';
+let parcelasSort='default';
+
+// Override renderParcelas to use persistent search state
+const _renderParcelas=renderParcelas;
+// Already defined above — patch via event delegation instead
+
+// ── Update switchTab to include reserva ──────────────────────────────────────
+const _switchTab=switchTab;
+function switchTab(tab){
+  document.querySelectorAll('.tab').forEach((t,i)=>{t.classList.toggle('active',['alimentacao','transporte','farmacia','fixos','parcelas','reserva','resumo'][i]===tab);});
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+tab).classList.add('active');
+  currentTab=tab;
+  if(tab==='reserva'){loadReserva().then(()=>renderReserva());}
+  else renderSection(tab);
+}
+
+// ── Init ──────────────────────────────────────────────────────────────────────
+sb.auth.onAuthStateChange((event,session)=>{
+  currentUser=session?.user||null;
+  if(session){
+    startApp();
+  } else {
+    document.getElementById('app').style.display='none';
+    document.getElementById('login-screen').style.display='flex';
+  }
 });
 </script>
 </body>
