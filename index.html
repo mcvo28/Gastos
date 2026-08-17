@@ -141,6 +141,7 @@ textarea.field{resize:none;line-height:1.5;}
     <div class="login-err" id="login-err"></div>
     <button class="login-btn" onclick="handleLogin()">Entrar</button>
     <button class="login-btn secondary" onclick="showSignup()">Criar conta</button>
+    <button style="background:none;border:none;color:var(--muted);font-size:13px;font-family:'DM Sans',sans-serif;cursor:pointer;padding:8px;text-decoration:underline;" onclick="handleForgotPassword()">Esqueci minha senha</button>
   </div>
   <div class="login-box" id="signup-box" style="display:none">
     <input class="login-field" id="signup-email" type="email" placeholder="Email" autocomplete="email" />
@@ -1216,6 +1217,15 @@ function showLogin(){
 function showSignup(){
   document.getElementById('login-box').style.display='none';
   document.getElementById('signup-box').style.display='flex';
+}
+
+async function handleForgotPassword(){
+  const email=document.getElementById('login-email').value.trim();
+  if(!email){document.getElementById('login-err').textContent='Digite seu email primeiro.';return;}
+  const {error}=await sb.auth.resetPasswordForEmail(email,{redirectTo:'https://mcvo28.github.io/Gastos'});
+  if(error){document.getElementById('login-err').textContent='Erro ao enviar email. Tente novamente.';return;}
+  document.getElementById('login-err').style.color='#4ade80';
+  document.getElementById('login-err').textContent='Email de recuperação enviado! Verifique sua caixa de entrada.';
 }
 
 async function handleLogin(){
