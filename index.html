@@ -305,6 +305,10 @@ textarea.field{resize:none;line-height:1.5;}
 <div class="overlay" id="overlay-form">
   <div class="modal">
     <div class="modal-title" id="form-title">Novo gasto</div>
+    <div class="cat-row" id="f-person-row" style="display:none;margin-bottom:10px;">
+      <button class="cat-btn active" id="fp-matheus" onclick="selectFormPerson('matheus',this)">🚗 Matheus</button>
+      <button class="cat-btn" id="fp-rafa" onclick="selectFormPerson('rafa',this)">🚙 Rafa</button>
+    </div>
     <input class="field" id="f-name" placeholder="Nome do local" oninput="autoCategory()" />
     <input class="field" id="f-amount" type="number" step="0.01" min="0" placeholder="Valor (R$)" />
     <div class="cat-row" id="f-cat-row"></div>
@@ -354,6 +358,10 @@ textarea.field{resize:none;line-height:1.5;}
     <div class="modal-title" id="fixo-form-title">Novo gasto fixo</div>
     <input class="field" id="fx-name" placeholder="Descrição (ex: Internet)" />
     <input class="field" id="fx-amount" type="number" step="0.01" min="0" placeholder="Valor mensal (R$)" />
+    <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">Início (mês de vigência)</label>
+    <input class="field" id="fx-start" type="month" style="-webkit-appearance:none;color-scheme:dark;" />
+    <label style="font-size:12px;color:var(--muted);margin-bottom:4px;display:block">Fim (opcional — deixe em branco se for indefinido)</label>
+    <input class="field" id="fx-end" type="month" style="-webkit-appearance:none;color-scheme:dark;" />
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeOverlay('overlay-fixo')">Cancelar</button>
       <button class="btn-confirm" onclick="handleFixoSubmit()">Salvar</button>
@@ -802,15 +810,39 @@ function renderFarmacia(){
 }
 
 // ── Render fixos ──────────────────────────────────────────────────────────────
+function fixoAtivo(f, year, month){
+  const cur=year*100+month;
+  // Se não tem início definido, considera sempre ativo
+  const start=f.startYear&&f.startMonth?f.startYear*100+f.startMonth:0;
+  const end=f.endYear&&f.endMonth?f.endYear*100+f.endMonth:999999;
+  return cur>=start&&cur<=end;
+}
+
 function renderFixos(){
-  const total=fixosData.reduce((s,f)=>s+f.amount,0);
-  let html=`<div class="parcelas-total-card" style="background:#38bdf818;border-color:#38bdf840"><div><div class="parcelas-total-label">Total fixo mensal</div></div><div class="parcelas-total-val" style="color:#38bdf8">${fmt(total)}</div></div>`;
+  // Show all fixos with vigência info (not filtered by fatura here)
+  const now=new Date();
+  const curYear=now.getFullYear(), curMonth=now.getMonth()+1;
+  const ativos=fixosData.filter(f=>fixoAtivo(f,curYear,curMonth));
+  const total=ativos.reduce((s,f)=>s+f.amount,0);
+
+  let html=`<div class="parcelas-total-card" style="background:#38bdf818;border-color:#38bdf840">
+    <div><div class="parcelas-total-label">Total fixo mensal (mês atual)</div></div>
+    <div class="parcelas-total-val" style="color:#38bdf8">${fmt(total)}</div>
+  </div>`;
+
   if(!fixosData.length){html+=`<div class="empty"><div class="empty-icon">📌</div>Nenhum gasto fixo cadastrado.</div>`;}
   else{
     html+=`<div class="day-group">`;
     fixosData.forEach(f=>{
-      html+=`<div class="parcela-row">
-        <div class="parcela-info"><div class="parcela-name">📌 ${f.name}</div></div>
+      const ativo=fixoAtivo(f,curYear,curMonth);
+      const startStr=f.startYear?`${MONTHS[f.startMonth-1].slice(0,3)}/${f.startYear}`:'';
+      const endStr=f.endYear?` → ${MONTHS[f.endMonth-1].slice(0,3)}/${f.endYear}`:'';
+      const vigencia=startStr||endStr?`${startStr}${endStr}`:'';
+      html+=`<div class="parcela-row" style="${ativo?'':'opacity:.45'}">
+        <div class="parcela-info">
+          <div class="parcela-name">📌 ${f.name}</div>
+          ${vigencia?`<div class="parcela-prog">${vigencia}${ativo?'':' · <span style="color:#f87171">inativo</span>'}</div>`:''}
+        </div>
         <div class="parcela-amount" style="color:#38bdf8">${fmt(f.amount)}</div>
         <button class="action-btn" onclick="editFixo('${f.id}')">✏️</button>
         <button class="action-btn" onclick="deleteFixo('${f.id}')">🗑️</button>
@@ -827,13 +859,22 @@ function openFixoForm(f=null){
   document.getElementById('fixo-form-title').textContent=f?'Editar gasto fixo':'Novo gasto fixo';
   document.getElementById('fx-name').value=f?f.name:'';
   document.getElementById('fx-amount').value=f?f.amount:'';
+  const now=new Date();
+  const curMonth=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  document.getElementById('fx-start').value=f&&f.startYear?`${f.startYear}-${String(f.startMonth).padStart(2,'0')}`:curMonth;
+  document.getElementById('fx-end').value=f&&f.endYear?`${f.endYear}-${String(f.endMonth).padStart(2,'0')}` :'';
   openOverlay('overlay-fixo');
 }
 function handleFixoSubmit(){
   const name=document.getElementById('fx-name').value.trim();
   const amount=parseFloat(document.getElementById('fx-amount').value);
-  if(!name||!amount)return;
-  const entry={id:editFixoId||String(Date.now()),name,amount};
+  const startVal=document.getElementById('fx-start').value;
+  const endVal=document.getElementById('fx-end').value;
+  if(!name||!amount||!startVal)return;
+  const [startYear,startMonth]=startVal.split('-').map(Number);
+  const endYear=endVal?parseInt(endVal.split('-')[0]):null;
+  const endMonth=endVal?parseInt(endVal.split('-')[1]):null;
+  const entry={id:editFixoId||String(Date.now()),name,amount,startYear,startMonth,endYear,endMonth};
   if(editFixoId)fixosData=fixosData.map(f=>f.id===editFixoId?entry:f);
   else fixosData.push(entry);
   saveAndSync('gastos-fixos-v1',fixosData);
@@ -930,7 +971,7 @@ function renderResumo(){
   const transpRafaTot=transpRafaF.reduce((s,e)=>s+e.amount,0);
   const farmTot=farmF.reduce((s,e)=>s+e.amount,0);
   const parcelaTot=activeP.reduce((s,p)=>s+p.amount,0);
-  const fixosTot=fixosData.reduce((s,f)=>s+f.amount,0);
+  const fixosTot=fixosData.filter(f=>fixoAtivo(f,year,month)).reduce((s,f)=>s+f.amount,0);
   const grandTotal=alimTot+transpTot+transpRafaTot+farmTot+fixosTot+parcelaTot;
 
   const alimByCat={};alimF.forEach(e=>{let cat=e.category==='mercado'?'feira':e.category;alimByCat[cat]=(alimByCat[cat]||0)+e.amount;});
@@ -957,8 +998,9 @@ function renderResumo(){
   html+=`</div>`;
 
   html+=`<div class="resumo-card"><div class="resumo-card-title">📌 Fixos — ${fmt(fixosTot)}</div>`;
-  if(!fixosData.length){html+=`<div class="resumo-row"><span class="resumo-row-label" style="color:#555">Nenhum gasto fixo cadastrado</span></div>`;}
-  else{fixosData.forEach(f=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${f.name}</span><span class="resumo-row-val" style="color:#38bdf8">${fmt(f.amount)}</span></div>`;});}
+  const activeFixos=fixosData.filter(f=>fixoAtivo(f,year,month));
+  if(!activeFixos.length){html+=`<div class="resumo-row"><span class="resumo-row-label" style="color:#555">Nenhum gasto fixo ativo</span></div>`;}
+  else{activeFixos.forEach(f=>{html+=`<div class="resumo-row"><span class="resumo-row-label">${f.name}</span><span class="resumo-row-val" style="color:#38bdf8">${fmt(f.amount)}</span></div>`;});}
   html+=`</div>`;
 
   html+=`<div class="resumo-card"><div class="resumo-card-title">💳 Parcelas — ${fmt(parcelaTot)}</div>`;
@@ -998,6 +1040,13 @@ function handleDateEdit(){
 // ── Form ──────────────────────────────────────────────────────────────────────
 let formSection='alimentacao';
 let editId=null;
+let formPerson='matheus';
+
+function selectFormPerson(person,btn){
+  formPerson=person;
+  document.querySelectorAll('#f-person-row .cat-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
 
 function openForm(section,exp=null){
   formSection=section;editId=exp?exp.id:null;
@@ -1006,6 +1055,19 @@ function openForm(section,exp=null){
   document.getElementById('f-name').value=exp?exp.name:'';
   document.getElementById('f-amount').value=exp?exp.amount:'';
   document.getElementById('f-date').value=exp?exp.date:today();
+
+  // Person selector for transporte
+  const personRow=document.getElementById('f-person-row');
+  if(section==='transporte'){
+    personRow.style.display='flex';
+    if(exp){formPerson=transpRafaExpenses.some(e=>e.id===exp.id)?'rafa':'matheus';}
+    else{formPerson=currentPerson;}
+    document.getElementById('fp-matheus').classList.toggle('active',formPerson==='matheus');
+    document.getElementById('fp-rafa').classList.toggle('active',formPerson==='rafa');
+  } else {
+    personRow.style.display='none';
+  }
+
   if(cats){
     document.getElementById('f-cat-row').style.display='flex';
     let cat=exp?exp.category:Object.keys(cats)[0];
@@ -1053,7 +1115,7 @@ function handleSubmit(){
   } else if(formSection==='farmacia'){
     if(editId)farmaciaExpenses=farmaciaExpenses.map(e=>e.id===editId?entry:e);else farmaciaExpenses.push(entry);
     saveAndSync('gastos-farm-v1',farmaciaExpenses);
-  } else if(currentPerson==='rafa'){
+  } else if(formPerson==='rafa'){
     if(editId)transpRafaExpenses=transpRafaExpenses.map(e=>e.id===editId?entry:e);else transpRafaExpenses.push(entry);
     saveAndSync('gastos-transp-rafa-v1',transpRafaExpenses);
   } else {
