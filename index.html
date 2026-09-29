@@ -290,15 +290,20 @@ textarea.field{resize:none;line-height:1.5;}
   <div class="header">
     <div class="title-row">
       <div><div class="title-main">💵</div><div class="title-sub">Entradas</div></div>
-      <div class="btn-row"><button class="pill btn-new-green" onclick="openEntradaForm()">+ Nova</button></div>
+      <div class="btn-row">
+        <button class="pill btn-new-green" onclick="openEntradaForm()">+ Nova</button>
+      </div>
     </div>
     <div class="fatura-nav">
-      <button class="nav-btn" id="ent-prev" onclick="changeFatura('entradas',-1)">‹</button>
-      <div class="fatura-label"><div class="fatura-name" id="ent-fatura-name">—</div><div class="fatura-range" id="ent-fatura-range">—</div></div>
-      <button class="nav-btn" id="ent-next" onclick="changeFatura('entradas',1)">›</button>
+      <button class="nav-btn" id="ent-prev" onclick="changeEntMonth(-1)">‹</button>
+      <div class="fatura-label"><div class="fatura-name" id="ent-month-name">—</div></div>
+      <button class="nav-btn" id="ent-next" onclick="changeEntMonth(1)">›</button>
     </div>
     <div class="summaries" id="ent-summaries"></div>
-    <div class="filters" id="ent-filters"></div>
+    <div style="display:flex;gap:6px;align-items:center;padding-bottom:10px;" id="ent-filter-row">
+      <div class="filters" id="ent-filters" style="padding-bottom:0;flex:1"></div>
+      <button id="ent-pdf-btn" onclick="exportEntradaPDF()" style="display:none;padding:5px 12px;font-size:11px;background:#22c55e;color:#fff;border:none;border-radius:999px;cursor:pointer;font-family:'DM Sans',sans-serif;font-weight:600;white-space:nowrap;">📄 PDF</button>
+    </div>
   </div>
   <div class="list" id="ent-list"></div>
 </div>
@@ -841,20 +846,31 @@ function renderParcelas(){
   if(so){so.addEventListener('change',function(){parcelasSort=this.value;renderParcelas();});}
 }
 
+// ── Entradas month nav ────────────────────────────────────────────────────────
+const now0=new Date();
+let entMonth={year:now0.getFullYear(),month:now0.getMonth()+1};
+
+function changeEntMonth(dir){
+  entMonth.month+=dir;
+  if(entMonth.month>12){entMonth.month=1;entMonth.year++;}
+  if(entMonth.month<1){entMonth.month=12;entMonth.year--;}
+  renderEntradas();
+}
+
 // ── Render entradas ──────────────────────────────────────────────────────────
 function renderEntradas(){
-  const fat=FATURAS.find(f=>f.id===faturaIds.entradas)||FATURAS[0];
-  const rel=relevantFaturas(entradasData.map(e=>({date:e.datePrevista||today()})));
-  const idx=rel.findIndex(f=>f.id===faturaIds.entradas);
-  document.getElementById('ent-fatura-name').textContent=fat.label;
-  document.getElementById('ent-fatura-range').innerHTML=
-    `<span class="fatura-range-text" onclick="openDateEdit('${fat.id}')">${fmtShort(fat.start)} → ${fmtShort(fat.end)} ✏️</span>`;
-  document.getElementById('ent-prev').disabled=idx>=rel.length-1;
-  document.getElementById('ent-next').disabled=idx<=0;
+  const {year,month}=entMonth;
+  const monthStart=`${year}-${String(month).padStart(2,'0')}-01`;
+  const monthEnd=`${year}-${String(month).padStart(2,'0')}-31`;
+  document.getElementById('ent-month-name').textContent=`${MONTHS[month-1]} ${year}`;
+  document.getElementById('ent-prev').disabled=false;
+  document.getElementById('ent-next').disabled=false;
   const cf=catFilters.entradas;
   const filtered=entradasData.filter(e=>{
     const d=e.datePrevista||today();
-    return d>=fat.start&&d<=fat.end&&(cf==='all'||e.categoria===cf);
+    const m=d.slice(0,7);
+    const thisM=`${year}-${String(month).padStart(2,'0')}`;
+    return m===thisM&&(cf==='all'||e.categoria===cf);
   });
   const totEsp=filtered.reduce((s,e)=>s+(e.valorEsperado||0),0);
   const totRec=filtered.reduce((s,e)=>s+(e.valorRecebido||0),0);
@@ -865,8 +881,11 @@ function renderEntradas(){
   document.getElementById('ent-filters').innerHTML=allF.map(([k,l,c])=>
     `<button class="filter-btn${cf===k?' active':''}" style="${cf===k?`background:${c};color:${k==='all'?'#0f0f13':'#fff'};border:none`:''}" onclick="setFilter('entradas','${k}')">${l}</button>`
   ).join('');
+  // Show PDF button only when a specific person is selected
+  const pdfBtn=document.getElementById('ent-pdf-btn');
+  if(pdfBtn)pdfBtn.style.display=(cf!=='all')?'block':'none';
   let html='';
-  if(!filtered.length){html=`<div class="empty"><div class="empty-icon">💵</div>Nenhuma entrada nesta fatura ainda.</div>`;}
+  if(!filtered.length){html=`<div class="empty"><div class="empty-icon">💵</div>Nenhuma entrada em ${MONTHS[month-1]}.</div>`;}
   else{
     const sorted=[...filtered].sort((a,b)=>(a.datePrevista||'').localeCompare(b.datePrevista||''));
     html+=`<div class="day-group">`;
@@ -896,6 +915,63 @@ function renderEntradas(){
     html+=`<div class="fatura-total">Total recebido: <span style="color:#22c55e">${fmt(totRec)}</span></div>`;
   }
   document.getElementById('ent-list').innerHTML=html;
+}
+
+// ── Export entrada PDF ────────────────────────────────────────────────────────
+function exportEntradaPDF(){
+  const cf=catFilters.entradas;
+  if(cf==='all')return;
+  const {year,month}=entMonth;
+  const thisM=`${year}-${String(month).padStart(2,'0')}`;
+  const cat=ENT_CATS[cf];
+  const filtered=entradasData.filter(e=>e.categoria===cf&&(e.datePrevista||today()).slice(0,7)===thisM);
+  const totEsp=filtered.reduce((s,e)=>s+(e.valorEsperado||0),0);
+  const totRec=filtered.reduce((s,e)=>s+(e.valorRecebido||0),0);
+  const rows=filtered.sort((a,b)=>(a.datePrevista||'').localeCompare(b.datePrevista||'')).map(e=>{
+    const st=getEntradaStatus(e);
+    const prog=e.parcelaAtual?` (${e.parcelaAtual}/${e.parcelaTotal})`:'';
+    return `<tr>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;">${e.nome||'—'}${prog}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;">${e.datePrevista?new Date(e.datePrevista+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;">${e.dataRecebida?new Date(e.dataRecebida+'T12:00:00').toLocaleDateString('pt-BR'):'—'}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;">${fmt(e.valorEsperado||0)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;text-align:right;color:${(e.valorRecebido||0)>=(e.valorEsperado||0)?'#16a34a':'#d97706'}">${fmt(e.valorRecebido||0)}</td>
+      <td style="padding:8px 12px;border-bottom:1px solid #eee;">${st.label}</td>
+    </tr>`;
+  }).join('');
+  const html=`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8">
+  <title>Entradas — ${cat.label} — ${MONTHS[month-1]} ${year}</title>
+  <style>
+    body{font-family:'Segoe UI',Arial,sans-serif;margin:0;padding:32px;color:#111;}
+    h1{font-size:20px;margin-bottom:4px;}
+    h2{font-size:14px;color:#666;font-weight:normal;margin-bottom:24px;}
+    table{width:100%;border-collapse:collapse;font-size:13px;}
+    th{background:#f3f4f6;padding:8px 12px;text-align:left;font-weight:600;border-bottom:2px solid #ddd;}
+    th:last-child,td:last-child{text-align:center;}
+    .totals{margin-top:20px;display:flex;gap:24px;}
+    .total-box{background:#f9fafb;border:1px solid #e5e7eb;border-radius:8px;padding:12px 20px;}
+    .total-label{font-size:11px;color:#666;margin-bottom:2px;}
+    .total-val{font-size:18px;font-weight:700;}
+    .footer{margin-top:32px;font-size:11px;color:#999;border-top:1px solid #eee;padding-top:12px;}
+  </style></head><body>
+  <h1>${cat.emoji} Entradas — ${cat.label}</h1>
+  <h2>${MONTHS[month-1]} ${year}</h2>
+  <table>
+    <thead><tr>
+      <th>Descrição</th><th>Previsto</th><th>Recebido em</th><th style="text-align:right">Esperado</th><th style="text-align:right">Recebido</th><th>Status</th>
+    </tr></thead>
+    <tbody>${rows||'<tr><td colspan="6" style="padding:16px;text-align:center;color:#999">Nenhuma entrada neste mês.</td></tr>'}</tbody>
+  </table>
+  <div class="totals">
+    <div class="total-box"><div class="total-label">Total esperado</div><div class="total-val">${fmt(totEsp)}</div></div>
+    <div class="total-box"><div class="total-label">Total recebido</div><div class="total-val" style="color:#16a34a">${fmt(totRec)}</div></div>
+    ${totEsp>totRec?`<div class="total-box"><div class="total-label">Pendente</div><div class="total-val" style="color:#d97706">${fmt(totEsp-totRec)}</div></div>`:''}
+  </div>
+  <div class="footer">Gerado em ${new Date().toLocaleString('pt-BR')} · Gastos App</div>
+  <script>window.onload=function(){window.print();}<\/script>
+  </body></html>`;
+  const w=window.open('','_blank');
+  if(w){w.document.write(html);w.document.close();}
 }
 
 // ── Render reserva ───────────────────────────────────────────────────────────
@@ -985,7 +1061,7 @@ function renderResumo(){
   document.getElementById('resumo-list').innerHTML=html;
 }
 
-function setFilter(section,f){catFilters[section]=f;renderSection(section);}
+function setFilter(section,f){catFilters[section]=f;if(section==='entradas')renderEntradas();else renderSection(section);}
 
 // ── Date edit ────────────────────────────────────────────────────────────────
 let editingFatId=null;
