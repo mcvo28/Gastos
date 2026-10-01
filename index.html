@@ -187,6 +187,7 @@ textarea.field{resize:none;line-height:1.5;}
   <div class="tab" onclick="switchTab('fixos')"><span class="tab-icon">📌</span><span class="tab-label">Fixos</span></div>
   <div class="tab" onclick="switchTab('parcelas')"><span class="tab-icon">💳</span><span class="tab-label">Parcelas</span></div>
   <div class="tab" onclick="switchTab('entradas')"><span class="tab-icon">💵</span><span class="tab-label">Entradas</span></div>
+  <div class="tab" onclick="switchTab('pagamentos')"><span class="tab-icon">📅</span><span class="tab-label">Pagtos.</span></div>
   <div class="tab" onclick="switchTab('reserva')"><span class="tab-icon">💰</span><span class="tab-label">Reserva</span></div>
   <div class="tab" onclick="switchTab('resumo')"><span class="tab-icon">📊</span><span class="tab-label">Resumo</span></div>
 </div>
@@ -306,6 +307,21 @@ textarea.field{resize:none;line-height:1.5;}
     </div>
   </div>
   <div class="list" id="ent-list"></div>
+</div>
+
+<!-- PAGAMENTOS -->
+<div class="section" id="sec-pagamentos">
+  <div class="sec-header">
+    <div class="title-row">
+      <div><div class="title-main">📅</div><div class="title-sub">Pagamentos</div></div>
+      <div class="btn-row"><button class="pill btn-new" onclick="openPagamentoForm()">+ Novo</button></div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+      <div id="pag-month-name" style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;"></div>
+      <div id="pag-progress" style="font-size:12px;color:var(--muted);"></div>
+    </div>
+  </div>
+  <div class="list" id="pagamentos-list"></div>
 </div>
 
 <!-- RESERVA -->
@@ -471,6 +487,36 @@ textarea.field{resize:none;line-height:1.5;}
   </div>
 </div>
 
+<!-- Bulk Payment Modal -->
+<div class="overlay" id="overlay-bulk">
+  <div class="modal">
+    <div class="modal-title" id="bulk-title">Registrar pagamento</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6" id="bulk-desc"></p>
+    <label class="field-label">Valor recebido (R$)</label>
+    <input class="field" id="bulk-valor" type="number" step="0.01" min="0" placeholder="Valor total recebido"/>
+    <label class="field-label">Data de recebimento</label>
+    <input class="field" id="bulk-data" type="date" style="-webkit-appearance:none;color-scheme:dark;"/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeOverlay('overlay-bulk')">Cancelar</button>
+      <button class="btn-confirm-green" onclick="handleBulkPayment()">Confirmar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Pagamento Form Modal -->
+<div class="overlay" id="overlay-pagamento">
+  <div class="modal">
+    <div class="modal-title" id="pag-form-title">Novo pagamento</div>
+    <input class="field" id="pag-nome" placeholder="Descrição (ex: Nubank)"/>
+    <label class="field-label">Dia do mês</label>
+    <input class="field" id="pag-dia" type="number" min="1" max="31" placeholder="Dia (ex: 15)"/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeOverlay('overlay-pagamento')">Cancelar</button>
+      <button class="btn-confirm" onclick="handlePagamentoSubmit()">Salvar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Backup Modal -->
 <div class="overlay" id="overlay-backup">
   <div class="modal">
@@ -594,6 +640,50 @@ let parcelasData=load('gastos-parcelas-v2',[]);
 let entradasData=load('gastos-entradas-v1',[]);
 let dateOverrides=load('gastos-dates-v1',{});
 let reservaData=[];
+
+const PAGAMENTOS_SEED=[
+  {id:'pag1',nome:'Visa Infinite',dia:1},
+  {id:'pag2',nome:'Internet JPA',dia:5},
+  {id:'pag3',nome:'Aluguel SP',dia:5},
+  {id:'pag4',nome:'IPTU SP',dia:5},
+  {id:'pag5',nome:'Energia SP',dia:5},
+  {id:'pag6',nome:'Azul Matheus',dia:6},
+  {id:'pag7',nome:'Renner',dia:6},
+  {id:'pag8',nome:'TIM Matheus',dia:7},
+  {id:'pag9',nome:'Aluguel JPA',dia:10},
+  {id:'pag10',nome:'Internet SP',dia:10},
+  {id:'pag11',nome:'Condomínio SP',dia:13},
+  {id:'pag12',nome:'Água SP',dia:13},
+  {id:'pag13',nome:'Amex + PS5',dia:13},
+  {id:'pag14',nome:'Nubank',dia:15},
+  {id:'pag15',nome:'Água JPA',dia:15},
+  {id:'pag16',nome:'Energia JPA',dia:15},
+];
+let pagamentosConfig=load('gastos-pag-config-v1',PAGAMENTOS_SEED);
+let pagamentosStatus=load('gastos-pag-status-v1',{});
+
+const PAGAMENTOS_SEED=[
+  {id:'pag1',nome:'Visa Infinite',dia:1},
+  {id:'pag2',nome:'Internet JPA',dia:5},
+  {id:'pag3',nome:'Aluguel SP',dia:5},
+  {id:'pag4',nome:'IPTU SP',dia:5},
+  {id:'pag5',nome:'Energia SP',dia:5},
+  {id:'pag6',nome:'Azul Matheus',dia:6},
+  {id:'pag7',nome:'Renner',dia:6},
+  {id:'pag8',nome:'TIM Matheus',dia:7},
+  {id:'pag9',nome:'Aluguel JPA',dia:10},
+  {id:'pag10',nome:'Internet SP',dia:10},
+  {id:'pag11',nome:'Condomínio SP',dia:13},
+  {id:'pag12',nome:'Água SP',dia:13},
+  {id:'pag13',nome:'Amex + PS5',dia:13},
+  {id:'pag14',nome:'Nubank',dia:15},
+  {id:'pag15',nome:'Água JPA',dia:15},
+  {id:'pag16',nome:'Energia JPA',dia:15},
+];
+
+let pagamentosConfig=load('gastos-pag-config-v1',PAGAMENTOS_SEED);
+// Status resets monthly: key = 'YYYY-MM-id'
+let pagamentosStatus=load('gastos-pag-status-v1',{});
 let currentPerson='matheus';
 let currentTab='alimentacao';
 let parcelasSearch='';
@@ -686,12 +776,13 @@ document.querySelectorAll('.overlay').forEach(el=>{
 
 // ── Tabs ─────────────────────────────────────────────────────────────────────
 function switchTab(tab){
-  const tabs=['alimentacao','transporte','farmacia','fixos','parcelas','entradas','reserva','resumo'];
+  const tabs=['alimentacao','transporte','farmacia','fixos','parcelas','entradas','pagamentos','reserva','resumo'];
   document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',tabs[i]===tab));
   document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
   document.getElementById('sec-'+tab).classList.add('active');
   currentTab=tab;
   if(tab==='reserva')loadReserva().then(()=>renderReserva());
+  else if(tab==='pagamentos')renderPagamentos();
   else renderSection(tab);
 }
 
@@ -783,6 +874,79 @@ function renderFarmacia(){
     html+=`<div class="fatura-total">Total da fatura: <span>${fmt(total)}</span></div>`;
   }
   document.getElementById('farm-list').innerHTML=html;
+}
+
+// ── Render pagamentos ─────────────────────────────────────────────────────────
+function renderPagamentos(){
+  const now=new Date();
+  const y=now.getFullYear(),m=now.getMonth()+1;
+  const monthKey=`${y}-${String(m).padStart(2,'0')}`;
+  document.getElementById('pag-month-name').textContent=`${MONTHS[m-1]} ${y}`;
+  const sorted=[...pagamentosConfig].sort((a,b)=>a.dia-b.dia);
+  const total=sorted.length;
+  const pagos=sorted.filter(p=>pagamentosStatus[`${monthKey}-${p.id}`]).length;
+  document.getElementById('pag-progress').textContent=`${pagos}/${total} pagos`;
+  const byDia={};
+  sorted.forEach(p=>{if(!byDia[p.dia])byDia[p.dia]=[];byDia[p.dia].push(p);});
+  let html=`<div class="total-card" style="background:${pagos===total?'#22c55e18':'#f59e0b18'};border:1px solid ${pagos===total?'#22c55e40':'#f59e0b40'}">
+    <div><div class="total-card-label">${pagos===total?'✅ Todos pagos':'⏳ Em andamento'}</div></div>
+    <div class="total-card-val" style="color:${pagos===total?'#22c55e':'#f59e0b'}">${pagos}/${total}</div>
+  </div>`;
+  Object.entries(byDia).sort(([a],[b])=>Number(a)-Number(b)).forEach(([dia,items])=>{
+    const diaDate=new Date(y,m-1,Number(dia));
+    const diaLabel=diaDate.toLocaleDateString('pt-BR',{weekday:'short',day:'numeric',month:'short'});
+    html+=`<div class="day-header"><span class="day-label">Dia ${dia} · ${diaLabel}</span></div><div class="day-group">`;
+    items.forEach(p=>{
+      const key=`${monthKey}-${p.id}`;
+      const pago=!!pagamentosStatus[key];
+      html+=`<div class="parc-row" style="${pago?'opacity:.6':''}">
+        <div class="parc-info">
+          <div class="parc-name" style="${pago?'text-decoration:line-through;color:var(--muted)':''}">📅 ${p.nome}</div>
+          <div class="parc-prog">Dia ${p.dia} de cada mês</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <button onclick="togglePagamento('${p.id}','${monthKey}')" style="padding:5px 14px;border:none;border-radius:999px;font-size:12px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;background:${pago?'#22c55e':'#2a2a35'};color:${pago?'#fff':'#888'}">${pago?'✅ Pago':'⬜ Pagar'}</button>
+          <button class="action-btn" onclick="openPagamentoForm('${p.id}')">✏️</button>
+          <button class="action-btn" onclick="deletePagamento('${p.id}')">🗑️</button>
+        </div>
+      </div>`;
+    });
+    html+=`</div>`;
+  });
+  document.getElementById('pagamentos-list').innerHTML=html;
+}
+
+function togglePagamento(id,monthKey){
+  const key=`${monthKey}-${id}`;
+  if(pagamentosStatus[key])delete pagamentosStatus[key];
+  else pagamentosStatus[key]=true;
+  _save('gastos-pag-status-v1',pagamentosStatus);
+  renderPagamentos();
+}
+
+let editPagamentoId=null;
+function openPagamentoForm(id=null){
+  editPagamentoId=id||null;
+  const p=id?pagamentosConfig.find(x=>x.id===id):null;
+  document.getElementById('pag-form-title').textContent=p?'Editar pagamento':'Novo pagamento';
+  document.getElementById('pag-nome').value=p?p.nome:'';
+  document.getElementById('pag-dia').value=p?p.dia:'';
+  openOverlay('overlay-pagamento');
+}
+function handlePagamentoSubmit(){
+  const nome=document.getElementById('pag-nome').value.trim();
+  const dia=parseInt(document.getElementById('pag-dia').value);
+  if(!nome||!dia)return;
+  const entry={id:editPagamentoId||('pag'+Date.now()),nome,dia};
+  if(editPagamentoId)pagamentosConfig=pagamentosConfig.map(p=>p.id===editPagamentoId?entry:p);
+  else pagamentosConfig.push(entry);
+  _save('gastos-pag-config-v1',pagamentosConfig);
+  closeOverlay('overlay-pagamento');renderPagamentos();
+}
+function deletePagamento(id){
+  pagamentosConfig=pagamentosConfig.filter(p=>p.id!==id);
+  _save('gastos-pag-config-v1',pagamentosConfig);
+  renderPagamentos();
 }
 
 // ── Render fixos ─────────────────────────────────────────────────────────────
@@ -884,34 +1048,52 @@ function renderEntradas(){
   // Show PDF button only when a specific person is selected
   const pdfBtn=document.getElementById('ent-pdf-btn');
   if(pdfBtn)pdfBtn.style.display=(cf!=='all')?'block':'none';
-  let html='';
   if(!filtered.length){html=`<div class="empty"><div class="empty-icon">💵</div>Nenhuma entrada em ${MONTHS[month-1]}.</div>`;}
   else{
     const sorted=[...filtered].sort((a,b)=>(a.datePrevista||'').localeCompare(b.datePrevista||''));
-    html+=`<div class="day-group">`;
-    sorted.forEach(e=>{
-      const c=ENT_CATS[e.categoria]||ENT_CATS.mae;
-      const st=getEntradaStatus(e);
-      const progStr=e.parcelaAtual?` · ${e.parcelaAtual}/${e.parcelaTotal}`:'';
-      const dataRecStr=e.dataRecebida?`<br>Recebido em: ${fmtDate(e.dataRecebida)}`:'';
-      html+=`<div class="entrada-row">
-        <span style="font-size:18px;flex-shrink:0">${c.emoji}</span>
-        <div class="entrada-info">
-          <div class="entrada-name">${e.nome||'—'}</div>
-          <div class="entrada-meta">${c.label}${progStr} · Previsto: ${e.datePrevista?fmtDate(e.datePrevista):'—'}${dataRecStr}</div>
-          <span class="status-badge" style="background:${st.color}22;color:${st.color}">${st.label}</span>
-        </div>
-        <div class="entrada-values">
-          <div class="entrada-recebido">${fmt(e.valorRecebido||0)}</div>
-          ${(e.valorEsperado&&e.valorEsperado!==e.valorRecebido)?`<div class="entrada-esperado">de ${fmt(e.valorEsperado)}</div>`:''}
-          <div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px;">
-            <button class="action-btn" onclick="openEntradaForm('${e.id}')">✏️</button>
-            <button class="action-btn" onclick="deleteEntrada('${e.id}')">🗑️</button>
+    // Group by datePrevista
+    const byDate={};
+    sorted.forEach(e=>{const d=e.datePrevista||today();if(!byDate[d])byDate[d]=[];byDate[d].push(e);});
+    Object.entries(byDate).sort(([a],[b])=>a.localeCompare(b)).forEach(([date,items])=>{
+      const dayEsp=items.reduce((s,e)=>s+(e.valorEsperado||0),0);
+      const dayRec=items.reduce((s,e)=>s+(e.valorRecebido||0),0);
+      const dayPend=dayEsp-dayRec;
+      html+=`<div class="day-header"><span class="day-label">${fmtDate(date)}</span></div><div class="day-group">`;
+      items.forEach(e=>{
+        const c=ENT_CATS[e.categoria]||ENT_CATS.mae;
+        const st=getEntradaStatus(e);
+        const progStr=e.parcelaAtual?` · ${e.parcelaAtual}/${e.parcelaTotal}`:'';
+        const dataRecStr=e.dataRecebida?`<br>Recebido em: ${fmtDate(e.dataRecebida)}`:'';
+        html+=`<div class="entrada-row">
+          <span style="font-size:18px;flex-shrink:0">${c.emoji}</span>
+          <div class="entrada-info">
+            <div class="entrada-name">${e.nome||'—'}</div>
+            <div class="entrada-meta">${c.label}${progStr}${dataRecStr}</div>
+            <span class="status-badge" style="background:${st.color}22;color:${st.color}">${st.label}</span>
           </div>
+          <div class="entrada-values">
+            <div class="entrada-recebido">${fmt(e.valorRecebido||0)}</div>
+            ${(e.valorEsperado&&e.valorEsperado!==e.valorRecebido)?`<div class="entrada-esperado">de ${fmt(e.valorEsperado)}</div>`:''}
+            <div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px;">
+              <button class="action-btn" onclick="openEntradaForm('${e.id}')">✏️</button>
+              <button class="action-btn" onclick="deleteEntrada('${e.id}')">🗑️</button>
+            </div>
+          </div>
+        </div>`;
+      });
+      // Day summary footer
+      html+=`<div style="padding:10px 0;border-top:1px solid #2a2a35;margin-top:2px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <div style="display:flex;gap:14px;font-size:12px;">
+            <span style="color:var(--muted)">Total: <strong style="color:#f0ede8">${fmt(dayEsp)}</strong></span>
+            <span style="color:var(--muted)">Pago: <strong style="color:#22c55e">${fmt(dayRec)}</strong></span>
+            ${dayPend>0?`<span style="color:var(--muted)">Pendente: <strong style="color:#f59e0b">${fmt(dayPend)}</strong></span>`:'<span style="color:#22c55e;font-size:11px">✅ Quitado</span>'}
+          </div>
+          ${dayPend>0?`<button onclick="openBulkPayment('${date}')" style="padding:5px 12px;background:#22c55e;color:#fff;border:none;border-radius:999px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;">💰 Registrar pagamento</button>`:''}
         </div>
       </div>`;
+      html+=`</div>`;
     });
-    html+=`</div>`;
     html+=`<div class="fatura-total">Total recebido: <span style="color:#22c55e">${fmt(totRec)}</span></div>`;
   }
   document.getElementById('ent-list').innerHTML=html;
@@ -1350,6 +1532,47 @@ function handleEntradaSubmit(){
   closeOverlay('overlay-entrada');renderEntradas();
 }
 function deleteEntrada(id){entradasData=entradasData.filter(e=>e.id!==id);saveAndSync('gastos-entradas-v1',entradasData);renderEntradas();}
+
+// ── Bulk payment ──────────────────────────────────────────────────────────────
+let bulkDate=null;
+function openBulkPayment(date){
+  bulkDate=date;
+  const cf=catFilters.entradas;
+  const {year,month}=entMonth;
+  const thisM=`${year}-${String(month).padStart(2,'0')}`;
+  const items=entradasData.filter(e=>e.datePrevista===date&&(cf==='all'||e.categoria===cf)&&(e.datePrevista||today()).slice(0,7)===thisM);
+  const dayEsp=items.reduce((s,e)=>s+(e.valorEsperado||0),0);
+  const dayRec=items.reduce((s,e)=>s+(e.valorRecebido||0),0);
+  const dayPend=dayEsp-dayRec;
+  document.getElementById('bulk-title').textContent=`Pagamento — ${fmtDate(date)}`;
+  document.getElementById('bulk-desc').textContent=`${items.length} lançamento(s) · Pendente: ${fmt(dayPend)}`;
+  document.getElementById('bulk-valor').value=dayPend.toFixed(2);
+  document.getElementById('bulk-data').value=today();
+  openOverlay('overlay-bulk');
+}
+
+function handleBulkPayment(){
+  const totalPago=parseFloat(document.getElementById('bulk-valor').value)||0;
+  const dataRec=document.getElementById('bulk-data').value||today();
+  const cf=catFilters.entradas;
+  const {year,month}=entMonth;
+  const thisM=`${year}-${String(month).padStart(2,'0')}`;
+  // Get items for this date sorted by value desc — distribute payment proportionally
+  const items=entradasData.filter(e=>e.datePrevista===bulkDate&&(cf==='all'||e.categoria===cf)&&(e.datePrevista||today()).slice(0,7)===thisM);
+  let restante=totalPago;
+  entradasData=entradasData.map(e=>{
+    if(!items.find(i=>i.id===e.id))return e;
+    const pendente=(e.valorEsperado||0)-(e.valorRecebido||0);
+    if(pendente<=0)return e;
+    const abater=Math.min(pendente,restante);
+    restante=Math.max(0,restante-abater);
+    const novoRec=(e.valorRecebido||0)+abater;
+    return{...e,valorRecebido:parseFloat(novoRec.toFixed(2)),dataRecebida:novoRec>=(e.valorEsperado||0)?dataRec:e.dataRecebida};
+  });
+  saveAndSync('gastos-entradas-v1',entradasData);
+  closeOverlay('overlay-bulk');
+  renderEntradas();
+}
 
 // ── Reserva ──────────────────────────────────────────────────────────────────
 async function loadReserva(){
