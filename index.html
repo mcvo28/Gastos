@@ -1026,6 +1026,7 @@ function renderEntradas(){
   // Show PDF button only when a specific person is selected
   const pdfBtn=document.getElementById('ent-pdf-btn');
   if(pdfBtn)pdfBtn.style.display=(cf!=='all')?'block':'none';
+  let html='';
   if(!filtered.length){html=`<div class="empty"><div class="empty-icon">💵</div>Nenhuma entrada em ${MONTHS[month-1]}.</div>`;}
   else{
     const sorted=[...filtered].sort((a,b)=>(a.datePrevista||'').localeCompare(b.datePrevista||''));
@@ -1053,8 +1054,8 @@ function renderEntradas(){
             <div class="entrada-recebido">${fmt(e.valorRecebido||0)}</div>
             ${(e.valorEsperado&&e.valorEsperado!==e.valorRecebido)?`<div class="entrada-esperado">de ${fmt(e.valorEsperado)}</div>`:''}
             <div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px;">
-              <button class="action-btn" onclick="openEntradaForm('${e.id}')">✏️</button>
-              <button class="action-btn" onclick="deleteEntrada('${e.id}')">🗑️</button>
+              <button class="action-btn" data-eid="${e.id}" onclick="openEntradaForm(this.dataset.eid)">✏️</button>
+              <button class="action-btn" data-eid="${e.id}" onclick="deleteEntrada(this.dataset.eid)">🗑️</button>
             </div>
           </div>
         </div>`;
@@ -1067,7 +1068,7 @@ function renderEntradas(){
             <span style="color:var(--muted)">Pago: <strong style="color:#22c55e">${fmt(dayRec)}</strong></span>
             ${dayPend>0?`<span style="color:var(--muted)">Pendente: <strong style="color:#f59e0b">${fmt(dayPend)}</strong></span>`:'<span style="color:#22c55e;font-size:11px">✅ Quitado</span>'}
           </div>
-          ${dayPend>0?`<button onclick="openBulkPayment('${date}')" style="padding:5px 12px;background:#22c55e;color:#fff;border:none;border-radius:999px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;">💰 Registrar pagamento</button>`:''}
+          ${dayPend>0?`<button data-date="${date}" onclick="openBulkPayment(this.dataset.date)" style="padding:5px 12px;background:#22c55e;color:#fff;border:none;border-radius:999px;font-size:11px;font-weight:600;font-family:'DM Sans',sans-serif;cursor:pointer;">💰 Registrar pagamento</button>`:''}
         </div>
       </div>`;
       html+=`</div>`;
