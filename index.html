@@ -594,6 +594,8 @@ async function syncToCloud(){
       {id:'parcelas',tipo:'parcelas',dados:parcelasData},
       {id:'entradas',tipo:'entradas',dados:entradasData},
       {id:'dates',tipo:'dates',dados:dateOverrides},
+      {id:'pag_config',tipo:'pag_config',dados:pagamentosConfig},
+      {id:'pag_status',tipo:'pag_status',dados:pagamentosStatus},
     ];
     const res=await fetch(`${SB_URL}/rest/v1/gastos`,{method:'POST',headers,body:JSON.stringify(rows)});
     if(!res.ok)throw new Error();
@@ -618,10 +620,15 @@ async function loadFromCloud(){
     parcelasData=get('parcelas',[]).length?get('parcelas',[]):parcelasData;
     entradasData=get('entradas',[]);
     dateOverrides=get('dates',{});
+    const pcfg=get('pag_config',null);
+    if(pcfg&&Array.isArray(pcfg)&&pcfg.length)pagamentosConfig=pcfg;
+    const pst=get('pag_status',null);
+    if(pst&&typeof pst==='object')pagamentosStatus=pst;
     _save('gastos-alim-v1',alimExpenses);_save('gastos-transp-v1',transpExpenses);
     _save('gastos-transp-rafa-v1',transpRafaExpenses);_save('gastos-farm-v1',farmaciaExpenses);
     _save('gastos-fixos-v1',fixosData);_save('gastos-parcelas-v2',parcelasData);
     _save('gastos-entradas-v1',entradasData);_save('gastos-dates-v1',dateOverrides);
+    _save('gastos-pag-config-v1',pagamentosConfig);_save('gastos-pag-status-v1',pagamentosStatus);
     FATURAS=generateFaturas();
     return true;
   }catch{return false;}
@@ -898,7 +905,7 @@ function togglePagamento(id,monthKey){
   const key=`${monthKey}-${id}`;
   if(pagamentosStatus[key])delete pagamentosStatus[key];
   else pagamentosStatus[key]=true;
-  _save('gastos-pag-status-v1',pagamentosStatus);
+  saveAndSync('gastos-pag-status-v1',pagamentosStatus);
   renderPagamentos();
 }
 
@@ -918,12 +925,12 @@ function handlePagamentoSubmit(){
   const entry={id:editPagamentoId||('pag'+Date.now()),nome,dia};
   if(editPagamentoId)pagamentosConfig=pagamentosConfig.map(p=>p.id===editPagamentoId?entry:p);
   else pagamentosConfig.push(entry);
-  _save('gastos-pag-config-v1',pagamentosConfig);
+  saveAndSync('gastos-pag-config-v1',pagamentosConfig);
   closeOverlay('overlay-pagamento');renderPagamentos();
 }
 function deletePagamento(id){
   pagamentosConfig=pagamentosConfig.filter(p=>p.id!==id);
-  _save('gastos-pag-config-v1',pagamentosConfig);
+  saveAndSync('gastos-pag-config-v1',pagamentosConfig);
   renderPagamentos();
 }
 
@@ -1594,7 +1601,7 @@ function openBackup(mode){
   if(mode==='export'){
     document.getElementById('backup-title').textContent='Exportar backup';
     document.getElementById('backup-desc').textContent='Copie e cole nas Notas.';
-    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,farm:farmaciaExpenses,fixos:fixosData,parcelas:parcelasData,entradas:entradasData,dates:dateOverrides});
+    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,farm:farmaciaExpenses,fixos:fixosData,parcelas:parcelasData,entradas:entradasData,dates:dateOverrides,pagConfig:pagamentosConfig,pagStatus:pagamentosStatus});
     ta.readOnly=true;document.getElementById('backup-action-btn').textContent='Copiar';
   } else{
     document.getElementById('backup-title').textContent='Importar backup';
@@ -1623,10 +1630,13 @@ function handleBackupAction(){
       parcelasData=Array.isArray(data.parcelas)?data.parcelas:[];
       entradasData=Array.isArray(data.entradas)?data.entradas:[];
       if(data.dates)dateOverrides=data.dates;
+      if(data.pagConfig&&Array.isArray(data.pagConfig)&&data.pagConfig.length)pagamentosConfig=data.pagConfig;
+      if(data.pagStatus)pagamentosStatus=data.pagStatus;
       saveAndSync('gastos-alim-v1',alimExpenses);saveAndSync('gastos-transp-v1',transpExpenses);
       saveAndSync('gastos-transp-rafa-v1',transpRafaExpenses);saveAndSync('gastos-farm-v1',farmaciaExpenses);
       saveAndSync('gastos-fixos-v1',fixosData);saveAndSync('gastos-parcelas-v2',parcelasData);
       saveAndSync('gastos-entradas-v1',entradasData);saveAndSync('gastos-dates-v1',dateOverrides);
+      saveAndSync('gastos-pag-config-v1',pagamentosConfig);saveAndSync('gastos-pag-status-v1',pagamentosStatus);
       FATURAS=generateFaturas();errEl.style.display='none';
       closeOverlay('overlay-backup');renderSection(currentTab);
     }catch{errEl.textContent='Texto inválido.';errEl.style.display='block';}
