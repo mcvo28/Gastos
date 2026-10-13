@@ -1015,11 +1015,44 @@ function renderEntradas(){
   document.getElementById('ent-prev').disabled=false;
   document.getElementById('ent-next').disabled=false;
   const cf=catFilters.entradas;
-  const filtered=entradasData.filter(e=>{
-    const d=e.datePrevista||today();
-    const m=d.slice(0,7);
-    const thisM=`${year}-${String(month).padStart(2,'0')}`;
-    return m===thisM&&(cf==='all'||e.categoria===cf);
+  const thisM=`${year}-${String(month).padStart(2,'0')}`;
+
+  // Build display list: non-parceladas filtered by month; parceladas projected,
+  // using a materialized real entry for this month if one already exists.
+  const filtered=[];
+  entradasData.forEach(e=>{
+    if(e.seriesParent)return; // materialized children handled via their template below
+    if(!(cf==='all'||e.categoria===cf))return;
+    if(e.parcelaAtual&&e.parcelaTotal&&e.parcelaRefYear&&e.parcelaRefMonth){
+      const diff=(year-e.parcelaRefYear)*12+(month-e.parcelaRefMonth);
+      const curParc=e.parcelaAtual+diff;
+      if(curParc<1||curParc>e.parcelaTotal)return;
+      // This template's own origin month — use it directly (it's real)
+      const origM=`${e.parcelaRefYear}-${String(e.parcelaRefMonth).padStart(2,'0')}`;
+      if(origM===thisM){filtered.push(e);return;}
+      // Look for an already-materialized child for this month
+      const child=entradasData.find(x=>x.seriesParent===e.id&&(x.datePrevista||'').slice(0,7)===thisM);
+      if(child){filtered.push(child);return;}
+      // Otherwise show a virtual (not-yet-saved) projection
+      const origDay=e.datePrevista?e.datePrevista.slice(8,10):'01';
+      filtered.push({
+        ...e,id:`virtual_${e.id}_${thisM}`,
+        datePrevista:`${thisM}-${origDay}`,
+        parcelaAtual:curParc,
+        valorRecebido:0,dataRecebida:null,
+        _virtual:true,_templateId:e.id,
+      });
+    } else {
+      const d=e.datePrevista||today();
+      if(d.slice(0,7)===thisM)filtered.push(e);
+    }
+  });
+  // Also include materialized children matching the category filter even if iterated after their template
+  entradasData.forEach(e=>{
+    if(!e.seriesParent)return;
+    if(!(cf==='all'||e.categoria===cf))return;
+    if((e.datePrevista||'').slice(0,7)!==thisM)return;
+    if(!filtered.find(f=>f.id===e.id))filtered.push(e);
   });
   const totEsp=filtered.reduce((s,e)=>s+(e.valorEsperado||0),0);
   const totRec=filtered.reduce((s,e)=>s+(e.valorRecebido||0),0);
@@ -1061,8 +1094,8 @@ function renderEntradas(){
             <div class="entrada-recebido">${fmt(e.valorRecebido||0)}</div>
             ${(e.valorEsperado&&e.valorEsperado!==e.valorRecebido)?`<div class="entrada-esperado">de ${fmt(e.valorEsperado)}</div>`:''}
             <div style="display:flex;gap:4px;justify-content:flex-end;margin-top:4px;">
-              <button class="action-btn" data-eid="${e.id}" onclick="openEntradaForm(this.dataset.eid)">✏️</button>
-              <button class="action-btn" data-eid="${e.id}" onclick="deleteEntrada(this.dataset.eid)">🗑️</button>
+              <button class="action-btn" data-eid="${e.id}" data-virtual="${e._virtual?'1':'0'}" data-tpl="${e._templateId||''}" onclick="handleEntradaEditClick(this)">✏️</button>
+              <button class="action-btn" data-eid="${e.id}" data-virtual="${e._virtual?'1':'0'}" data-tpl="${e._templateId||''}" onclick="handleEntradaDeleteClick(this)">🗑️</button>
             </div>
           </div>
         </div>`;
@@ -1519,10 +1552,80 @@ function handleEntradaSubmit(){
 }
 function deleteEntrada(id){entradasData=entradasData.filter(e=>e.id!==id);saveAndSync('gastos-entradas-v1',entradasData);renderEntradas();}
 
+// Materialize a virtual (projected) parcela entry into a real stored entry for this month
+function materializeEntrada(templateId,virtualId){
+  const tpl=entradasData.find(x=>x.id===templateId);
+  if(!tpl)return null;
+  // Re-derive which month this virtual entry is for from its id suffix
+  const thisM=virtualId.split('_').pop();
+  const diff=(parseInt(thisM.slice(0,4))-tpl.parcelaRefYear)*12+(parseInt(thisM.slice(5,7))-tpl.parcelaRefMonth);
+  const curParc=tpl.parcelaAtual+diff;
+  const origDay=tpl.datePrevista?tpl.datePrevista.slice(8,10):'01';
+  const real={
+    id:String(Date.now()),nome:tpl.nome,categoria:tpl.categoria,
+    valorEsperado:tpl.valorEsperado,valorRecebido:0,
+    datePrevista:`${thisM}-${origDay}`,dataRecebida:null,
+    parcelaAtual:curParc,parcelaTotal:tpl.parcelaTotal,
+    parcelaRefYear:tpl.parcelaRefYear,parcelaRefMonth:tpl.parcelaRefMonth,
+    seriesParent:templateId,
+  };
+  entradasData.push(real);
+  saveAndSync('gastos-entradas-v1',entradasData);
+  return real.id;
+}
+
+function handleEntradaEditClick(btn){
+  const isVirtual=btn.dataset.virtual==='1';
+  let id=btn.dataset.eid;
+  if(isVirtual){id=materializeEntrada(btn.dataset.tpl,id);if(!id)return;}
+  openEntradaForm(id);
+}
+function handleEntradaDeleteClick(btn){
+  const isVirtual=btn.dataset.virtual==='1';
+  if(isVirtual){
+    // Nothing persisted yet — just re-render (nothing to delete)
+    return;
+  }
+  deleteEntrada(btn.dataset.eid);
+}
+
 // ── Bulk payment ──────────────────────────────────────────────────────────────
 let bulkDate=null;
+
+// Materialize every virtual (projected) entry currently shown for this date/month/filter,
+// so the bulk payment can be saved against real records.
+function materializeDateGroup(date){
+  const cf=catFilters.entradas;
+  const {year,month}=entMonth;
+  const thisM=`${year}-${String(month).padStart(2,'0')}`;
+  entradasData.filter(x=>!x.seriesParent).forEach(tpl=>{
+    if(!(cf==='all'||tpl.categoria===cf))return;
+    if(!(tpl.parcelaAtual&&tpl.parcelaTotal&&tpl.parcelaRefYear&&tpl.parcelaRefMonth))return;
+    const diff=(year-tpl.parcelaRefYear)*12+(month-tpl.parcelaRefMonth);
+    const curParc=tpl.parcelaAtual+diff;
+    if(curParc<1||curParc>tpl.parcelaTotal)return;
+    const origM=`${tpl.parcelaRefYear}-${String(tpl.parcelaRefMonth).padStart(2,'0')}`;
+    if(origM===thisM)return; // template itself is already real
+    const origDay=tpl.datePrevista?tpl.datePrevista.slice(8,10):'01';
+    const projDate=`${thisM}-${origDay}`;
+    if(projDate!==date)return;
+    const already=entradasData.find(x=>x.seriesParent===tpl.id&&(x.datePrevista||'').slice(0,7)===thisM);
+    if(already)return;
+    entradasData.push({
+      id:String(Date.now())+Math.random(),nome:tpl.nome,categoria:tpl.categoria,
+      valorEsperado:tpl.valorEsperado,valorRecebido:0,
+      datePrevista:projDate,dataRecebida:null,
+      parcelaAtual:curParc,parcelaTotal:tpl.parcelaTotal,
+      parcelaRefYear:tpl.parcelaRefYear,parcelaRefMonth:tpl.parcelaRefMonth,
+      seriesParent:tpl.id,
+    });
+  });
+}
+
 function openBulkPayment(date){
   bulkDate=date;
+  materializeDateGroup(date);
+  _save('gastos-entradas-v1',entradasData);
   const cf=catFilters.entradas;
   const {year,month}=entMonth;
   const thisM=`${year}-${String(month).padStart(2,'0')}`;
