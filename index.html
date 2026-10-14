@@ -440,18 +440,19 @@ textarea.field{resize:none;line-height:1.5;}
     <input class="field" id="ent-date-prevista" type="date" style="-webkit-appearance:none;color-scheme:dark;"/>
     <label class="field-label">Data de recebimento (deixe em branco se pendente)</label>
     <input class="field" id="ent-date-recebida" type="date" style="-webkit-appearance:none;color-scheme:dark;"/>
-    <div id="ent-parcela-section" style="display:none">
-      <label class="field-label" style="margin-top:4px">É parcelada?</label>
-      <div style="display:flex;gap:8px;margin-bottom:9px;">
-        <button class="cat-btn" id="ent-parc-nao" onclick="toggleEntParc(false,this)" style="flex:1">Não</button>
-        <button class="cat-btn" id="ent-parc-sim" onclick="toggleEntParc(true,this)" style="flex:1">Sim</button>
-      </div>
-      <div id="ent-parc-fields" style="display:none">
-        <input class="field" id="ent-parc-current" type="number" min="1" placeholder="Parcela atual (ex: 3)"/>
-        <input class="field" id="ent-parc-total" type="number" min="1" placeholder="Total de parcelas (ex: 10)"/>
-        <input class="field" id="ent-parc-refmonth" type="month" style="-webkit-appearance:none;color-scheme:dark;"/>
-      </div>
+    <label class="field-label" style="margin-top:4px">Tipo</label>
+    <div class="cat-row" id="ent-tipo-row" style="margin-bottom:9px;">
+      <button class="cat-btn" id="ent-tipo-pontual" onclick="setEntTipo('pontual')">Pontual</button>
+      <button class="cat-btn active" id="ent-tipo-recorrente" onclick="setEntTipo('recorrente')">🔁 Recorrente</button>
+      <button class="cat-btn" id="ent-tipo-parcelada" onclick="setEntTipo('parcelada')">Parcelada</button>
     </div>
+    <div id="ent-parc-fields" style="display:none">
+      <input class="field" id="ent-parc-current" type="number" min="1" placeholder="Parcela atual (ex: 3)"/>
+      <input class="field" id="ent-parc-total" type="number" min="1" placeholder="Total de parcelas (ex: 10)"/>
+      <label class="field-label">Mês a que essa parcela atual se refere</label>
+      <input class="field" id="ent-parc-refmonth" type="month" style="-webkit-appearance:none;color-scheme:dark;"/>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:9px;line-height:1.5">Recorrente repete todo mês até você encerrar. Parcelada avança sozinha e some no fim. Pontual aparece só no mês da data prevista.</div>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeOverlay('overlay-entrada')">Cancelar</button>
       <button class="btn-confirm-green" onclick="handleEntradaSubmit()">Salvar</button>
@@ -1017,43 +1018,7 @@ function renderEntradas(){
   const cf=catFilters.entradas;
   const thisM=`${year}-${String(month).padStart(2,'0')}`;
 
-  // Build display list: non-parceladas filtered by month; parceladas projected,
-  // using a materialized real entry for this month if one already exists.
-  const filtered=[];
-  entradasData.forEach(e=>{
-    if(e.seriesParent)return; // materialized children handled via their template below
-    if(!(cf==='all'||e.categoria===cf))return;
-    if(e.parcelaAtual&&e.parcelaTotal&&e.parcelaRefYear&&e.parcelaRefMonth){
-      const diff=(year-e.parcelaRefYear)*12+(month-e.parcelaRefMonth);
-      const curParc=e.parcelaAtual+diff;
-      if(curParc<1||curParc>e.parcelaTotal)return;
-      // This template's own origin month — use it directly (it's real)
-      const origM=`${e.parcelaRefYear}-${String(e.parcelaRefMonth).padStart(2,'0')}`;
-      if(origM===thisM){filtered.push(e);return;}
-      // Look for an already-materialized child for this month
-      const child=entradasData.find(x=>x.seriesParent===e.id&&(x.datePrevista||'').slice(0,7)===thisM);
-      if(child){filtered.push(child);return;}
-      // Otherwise show a virtual (not-yet-saved) projection
-      const origDay=e.datePrevista?e.datePrevista.slice(8,10):'01';
-      filtered.push({
-        ...e,id:`virtual_${e.id}_${thisM}`,
-        datePrevista:`${thisM}-${origDay}`,
-        parcelaAtual:curParc,
-        valorRecebido:0,dataRecebida:null,
-        _virtual:true,_templateId:e.id,
-      });
-    } else {
-      const d=e.datePrevista||today();
-      if(d.slice(0,7)===thisM)filtered.push(e);
-    }
-  });
-  // Also include materialized children matching the category filter even if iterated after their template
-  entradasData.forEach(e=>{
-    if(!e.seriesParent)return;
-    if(!(cf==='all'||e.categoria===cf))return;
-    if((e.datePrevista||'').slice(0,7)!==thisM)return;
-    if(!filtered.find(f=>f.id===e.id))filtered.push(e);
-  });
+  const filtered=buildEntradasForMonth(thisM,cf);
   const totEsp=filtered.reduce((s,e)=>s+(e.valorEsperado||0),0);
   const totRec=filtered.reduce((s,e)=>s+(e.valorRecebido||0),0);
   document.getElementById('ent-summaries').innerHTML=
@@ -1125,7 +1090,7 @@ function exportEntradaPDF(){
   const {year,month}=entMonth;
   const thisM=`${year}-${String(month).padStart(2,'0')}`;
   const cat=ENT_CATS[cf];
-  const filtered=entradasData.filter(e=>e.categoria===cf&&(e.datePrevista||today()).slice(0,7)===thisM);
+  const filtered=buildEntradasForMonth(thisM,cf);
   const totEsp=filtered.reduce((s,e)=>s+(e.valorEsperado||0),0);
   const totRec=filtered.reduce((s,e)=>s+(e.valorRecebido||0),0);
   const rows=filtered.sort((a,b)=>(a.datePrevista||'').localeCompare(b.datePrevista||'')).map(e=>{
@@ -1217,7 +1182,7 @@ function renderResumo(){
   const transpF=transpExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
   const transpRafaF=transpRafaExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
   const farmF=farmaciaExpenses.filter(e=>e.date>=fat.start&&e.date<=fat.end);
-  const entF=entradasData.filter(e=>{const d=e.datePrevista||today();return d>=fat.start&&d<=fat.end;});
+  const entF=buildEntradasForMonth(`${fat.year}-${String(fat.month+1).padStart(2,'0')}`,'all');
   const {year,month}=getFaturaYearMonth(fat.id);
   const activeP=parcelasData.map(p=>parcelaForMonth(p,year,month)).filter(Boolean);
   const alimTot=alimF.reduce((s,e)=>s+e.amount,0);
@@ -1463,34 +1428,87 @@ function handleParcelaSubmit(){
 }
 function deleteParcela(id){parcelasData=parcelasData.filter(p=>p.id!==id);saveAndSync('gastos-parcelas-v2',parcelasData);renderParcelas();}
 
+// ── Entrada tipos: pontual / recorrente / parcelada ───────────────────────────
+function pad2(n){return String(n).padStart(2,'0');}
+// Entradas antigas sem "tipo": com parcela = parcelada; sem parcela = recorrente
+function entTipo(e){return e.tipo||((e.parcelaAtual&&e.parcelaTotal)?'parcelada':'recorrente');}
+function prevMonthStr(m){let y=parseInt(m.slice(0,4)),mo=parseInt(m.slice(5,7))-1;if(mo<1){mo=12;y--;}return `${y}-${pad2(mo)}`;}
+function entRef(e){
+  const d=e.datePrevista||today();
+  const y=e.parcelaRefYear||parseInt(d.slice(0,4));
+  const m=e.parcelaRefMonth||parseInt(d.slice(5,7));
+  return{y,m,str:`${y}-${pad2(m)}`};
+}
+// Does series template `tpl` have an occurrence in month thisM ('YYYY-MM')?
+function entProject(tpl,thisM){
+  const tipo=entTipo(tpl);
+  if(tipo==='pontual')return null;
+  const ref=entRef(tpl);
+  if(thisM<ref.str)return null;
+  if(tpl.serieFim&&thisM>tpl.serieFim)return null;
+  let cur=null;
+  if(tipo==='parcelada'){
+    const ty=parseInt(thisM.slice(0,4)),tm=parseInt(thisM.slice(5,7));
+    cur=tpl.parcelaAtual+((ty-ref.y)*12+(tm-ref.m));
+    if(cur<1||cur>tpl.parcelaTotal)return null;
+  }
+  const day=parseInt((tpl.datePrevista||'').slice(8,10))||1;
+  const dim=new Date(parseInt(thisM.slice(0,4)),parseInt(thisM.slice(5,7)),0).getDate();
+  return{cur,date:`${thisM}-${pad2(Math.min(day,dim))}`,origin:ref.str===thisM};
+}
+// All entradas shown for a calendar month: real records + virtual projections
+function buildEntradasForMonth(thisM,cf){
+  const out=[];
+  entradasData.forEach(e=>{
+    if(e.seriesParent)return;
+    if(!(cf==='all'||e.categoria===cf))return;
+    if(entTipo(e)==='pontual'){
+      if((e.datePrevista||today()).slice(0,7)===thisM)out.push(e);
+      return;
+    }
+    const p=entProject(e,thisM);
+    if(!p)return;
+    if(p.origin){out.push(e);return;}
+    const child=entradasData.find(x=>x.seriesParent===e.id&&(x.datePrevista||'').slice(0,7)===thisM);
+    if(child){out.push(child);return;}
+    out.push({...e,id:`virtual_${e.id}_${thisM}`,datePrevista:p.date,parcelaAtual:p.cur,valorRecebido:0,dataRecebida:null,_virtual:true,_templateId:e.id});
+  });
+  // materialized children whose template no longer exists
+  entradasData.forEach(e=>{
+    if(!e.seriesParent)return;
+    if(!(cf==='all'||e.categoria===cf))return;
+    if((e.datePrevista||'').slice(0,7)!==thisM)return;
+    if(!out.find(f=>f.id===e.id))out.push(e);
+  });
+  return out;
+}
+
 // ── Entrada form ──────────────────────────────────────────────────────────────
-let editEntradaId=null,entCatSelected='mae',entIsParc=false;
+let editEntradaId=null,entCatSelected='mae',entTipoSel='recorrente';
 
 function selectEntCat(cat,btn){
   entCatSelected=cat;
   document.querySelectorAll('#ent-cat-row .cat-btn').forEach(b=>{b.classList.remove('active','active-green');});
   btn.classList.add('active','active-green');
-  // Show date shortcuts for Gerson
   const sc=document.getElementById('ent-date-shortcuts');
   if(ENT_CATS[cat]&&ENT_CATS[cat].dateDays){
     sc.style.display='flex';
     sc.innerHTML=ENT_CATS[cat].dateDays.map(d=>`<button onclick="setEntDate(${d})" style="padding:6px 10px;background:#1e1e28;border:1px solid #2a2a35;color:#f0ede8;border-radius:8px;font-size:12px;cursor:pointer;">Dia ${d}</button>`).join('');
   } else{sc.style.display='none';}
-  // Show parcela section for eligible cats
-  document.getElementById('ent-parcela-section').style.display=ENT_CATS_PARC.includes(cat)?'block':'none';
 }
 
 function setEntDate(day){
   const now=new Date();
-  const d=`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
-  document.getElementById('ent-date-prevista').value=d;
+  document.getElementById('ent-date-prevista').value=`${now.getFullYear()}-${pad2(now.getMonth()+1)}-${pad2(day)}`;
 }
 
-function toggleEntParc(isParc,btn){
-  entIsParc=isParc;
-  document.getElementById('ent-parc-nao').classList.toggle('active',!isParc);
-  document.getElementById('ent-parc-sim').classList.toggle('active',isParc);
-  document.getElementById('ent-parc-fields').style.display=isParc?'block':'none';
+function setEntTipo(t){
+  entTipoSel=t;
+  ['pontual','recorrente','parcelada'].forEach(k=>{
+    const b=document.getElementById('ent-tipo-'+k);
+    if(b)b.classList.toggle('active',k===t);
+  });
+  document.getElementById('ent-parc-fields').style.display=t==='parcelada'?'block':'none';
 }
 
 function openEntradaForm(id=null){
@@ -1501,7 +1519,7 @@ function openEntradaForm(id=null){
   document.getElementById('ent-esperado').value=e?e.valorEsperado:'';
   document.getElementById('ent-recebido').value=e?e.valorRecebido:'';
   document.getElementById('ent-date-prevista').value=e?e.datePrevista:today();
-  document.getElementById('ent-date-recebida').value=e?e.dataRecebida:'';
+  document.getElementById('ent-date-recebida').value=e?(e.dataRecebida||''):'';
   const cat=e?e.categoria:'mae';
   entCatSelected=cat;
   document.querySelectorAll('#ent-cat-row .cat-btn').forEach(b=>{
@@ -1514,18 +1532,18 @@ function openEntradaForm(id=null){
     sc.style.display='flex';
     sc.innerHTML=ENT_CATS[cat].dateDays.map(d=>`<button onclick="setEntDate(${d})" style="padding:6px 10px;background:#1e1e28;border:1px solid #2a2a35;color:#f0ede8;border-radius:8px;font-size:12px;cursor:pointer;">Dia ${d}</button>`).join('');
   } else{sc.style.display='none';}
-  const showParc=ENT_CATS_PARC.includes(cat);
-  document.getElementById('ent-parcela-section').style.display=showParc?'block':'none';
-  entIsParc=e?!!e.parcelaAtual:false;
-  document.getElementById('ent-parc-nao').classList.toggle('active',!entIsParc);
-  document.getElementById('ent-parc-sim').classList.toggle('active',entIsParc);
-  document.getElementById('ent-parc-fields').style.display=entIsParc?'block':'none';
-  if(entIsParc){
-    document.getElementById('ent-parc-current').value=e?e.parcelaAtual:'';
-    document.getElementById('ent-parc-total').value=e?e.parcelaTotal:'';
-    const now=new Date();
-    document.getElementById('ent-parc-refmonth').value=e&&e.parcelaRefYear?
-      `${e.parcelaRefYear}-${String(e.parcelaRefMonth).padStart(2,'0')}`:`${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`;
+  const tipo=e?entTipo(e):'recorrente';
+  setEntTipo(tipo);
+  const now=new Date();
+  const defRef=`${now.getFullYear()}-${pad2(now.getMonth()+1)}`;
+  if(e&&tipo==='parcelada'){
+    document.getElementById('ent-parc-current').value=e.parcelaAtual||'';
+    document.getElementById('ent-parc-total').value=e.parcelaTotal||'';
+    document.getElementById('ent-parc-refmonth').value=entRef(e).str;
+  } else{
+    document.getElementById('ent-parc-current').value='';
+    document.getElementById('ent-parc-total').value='';
+    document.getElementById('ent-parc-refmonth').value=defRef;
   }
   openOverlay('overlay-entrada');
 }
@@ -1537,35 +1555,41 @@ function handleEntradaSubmit(){
   const datePrevista=document.getElementById('ent-date-prevista').value;
   const dataRecebida=document.getElementById('ent-date-recebida').value||null;
   if(!nome||!datePrevista)return;
-  const entry={id:editEntradaId||String(Date.now()),nome,categoria:entCatSelected,valorEsperado,valorRecebido,datePrevista,dataRecebida};
-  if(entIsParc&&ENT_CATS_PARC.includes(entCatSelected)){
-    entry.parcelaAtual=parseInt(document.getElementById('ent-parc-current').value)||null;
-    entry.parcelaTotal=parseInt(document.getElementById('ent-parc-total').value)||null;
-    const rv=document.getElementById('ent-parc-refmonth').value;
-    if(rv){const [y,m]=rv.split('-').map(Number);entry.parcelaRefYear=y;entry.parcelaRefMonth=m;}
+  const old=editEntradaId?entradasData.find(x=>x.id===editEntradaId):null;
+  const entry={id:editEntradaId||String(Date.now()),nome,categoria:entCatSelected,valorEsperado,valorRecebido,datePrevista,dataRecebida,tipo:entTipoSel};
+  if(old&&old.seriesParent)entry.seriesParent=old.seriesParent;
+  if(old&&old.serieFim)entry.serieFim=old.serieFim;
+  if(entTipoSel==='parcelada'){
+    const cur=parseInt(document.getElementById('ent-parc-current').value);
+    const tot=parseInt(document.getElementById('ent-parc-total').value);
+    if(!cur||!tot){alert('Preencha a parcela atual e o total de parcelas.');return;}
+    entry.parcelaAtual=cur;entry.parcelaTotal=tot;
+    const rv=document.getElementById('ent-parc-refmonth').value||datePrevista.slice(0,7);
+    entry.parcelaRefYear=parseInt(rv.slice(0,4));entry.parcelaRefMonth=parseInt(rv.slice(5,7));
   }
   if(editEntradaId)entradasData=entradasData.map(e=>e.id===editEntradaId?entry:e);else entradasData.push(entry);
   saveAndSync('gastos-entradas-v1',entradasData);
-  const match=FATURAS.find(f=>datePrevista>=f.start&&datePrevista<=f.end);
-  if(match)faturaIds.entradas=match.id;
+  entMonth={year:parseInt(datePrevista.slice(0,4)),month:parseInt(datePrevista.slice(5,7))};
   closeOverlay('overlay-entrada');renderEntradas();
 }
 function deleteEntrada(id){entradasData=entradasData.filter(e=>e.id!==id);saveAndSync('gastos-entradas-v1',entradasData);renderEntradas();}
 
-// Materialize a virtual (projected) parcela entry into a real stored entry for this month
+// Turn a virtual (projected) occurrence into a real stored record for that month
 function materializeEntrada(templateId,virtualId){
   const tpl=entradasData.find(x=>x.id===templateId);
   if(!tpl)return null;
-  // Re-derive which month this virtual entry is for from its id suffix
   const thisM=virtualId.split('_').pop();
-  const diff=(parseInt(thisM.slice(0,4))-tpl.parcelaRefYear)*12+(parseInt(thisM.slice(5,7))-tpl.parcelaRefMonth);
-  const curParc=tpl.parcelaAtual+diff;
-  const origDay=tpl.datePrevista?tpl.datePrevista.slice(8,10):'01';
+  const p=entProject(tpl,thisM);
+  if(!p)return null;
+  if(p.origin)return tpl.id;
+  const existing=entradasData.find(x=>x.seriesParent===tpl.id&&(x.datePrevista||'').slice(0,7)===thisM);
+  if(existing)return existing.id;
   const real={
-    id:String(Date.now()),nome:tpl.nome,categoria:tpl.categoria,
+    id:String(Date.now())+Math.floor(Math.random()*1000000),
+    nome:tpl.nome,categoria:tpl.categoria,tipo:entTipo(tpl),
     valorEsperado:tpl.valorEsperado,valorRecebido:0,
-    datePrevista:`${thisM}-${origDay}`,dataRecebida:null,
-    parcelaAtual:curParc,parcelaTotal:tpl.parcelaTotal,
+    datePrevista:p.date,dataRecebida:null,
+    parcelaAtual:p.cur,parcelaTotal:tpl.parcelaTotal,
     parcelaRefYear:tpl.parcelaRefYear,parcelaRefMonth:tpl.parcelaRefMonth,
     seriesParent:templateId,
   };
@@ -1575,18 +1599,41 @@ function materializeEntrada(templateId,virtualId){
 }
 
 function handleEntradaEditClick(btn){
-  const isVirtual=btn.dataset.virtual==='1';
   let id=btn.dataset.eid;
-  if(isVirtual){id=materializeEntrada(btn.dataset.tpl,id);if(!id)return;}
+  if(btn.dataset.virtual==='1'){id=materializeEntrada(btn.dataset.tpl,id);if(!id)return;}
   openEntradaForm(id);
 }
+
+// Ends a recorrente/parcelada series from month fromM onward; earlier months stay saved
+function endSeries(tplId,fromM){
+  const tpl=entradasData.find(x=>x.id===tplId);
+  entradasData=entradasData.filter(x=>!(x.seriesParent===tplId&&(x.datePrevista||'').slice(0,7)>=fromM));
+  if(tpl){
+    if(entRef(tpl).str>=fromM)entradasData=entradasData.filter(x=>x.id!==tplId);
+    else tpl.serieFim=prevMonthStr(fromM);
+  }
+  saveAndSync('gastos-entradas-v1',entradasData);
+  renderEntradas();
+}
+
 function handleEntradaDeleteClick(btn){
-  const isVirtual=btn.dataset.virtual==='1';
-  if(isVirtual){
-    // Nothing persisted yet — just re-render (nothing to delete)
+  const id=btn.dataset.eid;
+  let tplId=null,thisM=null;
+  if(btn.dataset.virtual==='1'){
+    tplId=btn.dataset.tpl;thisM=id.split('_').pop();
+  } else{
+    const e=entradasData.find(x=>x.id===id);
+    if(!e)return;
+    thisM=(e.datePrevista||today()).slice(0,7);
+    if(e.seriesParent)tplId=e.seriesParent;
+    else if(entTipo(e)!=='pontual')tplId=e.id;
+  }
+  if(!tplId){
+    if(confirm('Excluir esta entrada?'))deleteEntrada(id);
     return;
   }
-  deleteEntrada(btn.dataset.eid);
+  const mes=MONTHS[parseInt(thisM.slice(5,7))-1];
+  if(confirm(`Encerrar esta entrada a partir de ${mes}?\n\nOs meses anteriores continuam salvos; de ${mes} em diante ela deixa de aparecer.`))endSeries(tplId,thisM);
 }
 
 // ── Bulk payment ──────────────────────────────────────────────────────────────
@@ -1595,31 +1642,11 @@ let bulkDate=null;
 // Materialize every virtual (projected) entry currently shown for this date/month/filter,
 // so the bulk payment can be saved against real records.
 function materializeDateGroup(date){
-  const cf=catFilters.entradas;
   const {year,month}=entMonth;
   const thisM=`${year}-${String(month).padStart(2,'0')}`;
-  entradasData.filter(x=>!x.seriesParent).forEach(tpl=>{
-    if(!(cf==='all'||tpl.categoria===cf))return;
-    if(!(tpl.parcelaAtual&&tpl.parcelaTotal&&tpl.parcelaRefYear&&tpl.parcelaRefMonth))return;
-    const diff=(year-tpl.parcelaRefYear)*12+(month-tpl.parcelaRefMonth);
-    const curParc=tpl.parcelaAtual+diff;
-    if(curParc<1||curParc>tpl.parcelaTotal)return;
-    const origM=`${tpl.parcelaRefYear}-${String(tpl.parcelaRefMonth).padStart(2,'0')}`;
-    if(origM===thisM)return; // template itself is already real
-    const origDay=tpl.datePrevista?tpl.datePrevista.slice(8,10):'01';
-    const projDate=`${thisM}-${origDay}`;
-    if(projDate!==date)return;
-    const already=entradasData.find(x=>x.seriesParent===tpl.id&&(x.datePrevista||'').slice(0,7)===thisM);
-    if(already)return;
-    entradasData.push({
-      id:String(Date.now())+Math.random(),nome:tpl.nome,categoria:tpl.categoria,
-      valorEsperado:tpl.valorEsperado,valorRecebido:0,
-      datePrevista:projDate,dataRecebida:null,
-      parcelaAtual:curParc,parcelaTotal:tpl.parcelaTotal,
-      parcelaRefYear:tpl.parcelaRefYear,parcelaRefMonth:tpl.parcelaRefMonth,
-      seriesParent:tpl.id,
-    });
-  });
+  buildEntradasForMonth(thisM,catFilters.entradas)
+    .filter(x=>x._virtual&&x.datePrevista===date)
+    .forEach(v=>materializeEntrada(v._templateId,v.id));
 }
 
 function openBulkPayment(date){
