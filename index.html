@@ -334,6 +334,11 @@ textarea.field{resize:none;line-height:1.5;}
         <button class="logout-btn" onclick="handleLogout()">Sair</button>
       </div>
     </div>
+    <div class="fatura-nav" style="margin-bottom:0">
+      <button class="nav-btn" id="reserva-prev" onclick="changeReservaYear(-1)">‹</button>
+      <div class="fatura-label"><div class="fatura-name" id="reserva-year-name">—</div></div>
+      <button class="nav-btn" onclick="changeReservaYear(1)">›</button>
+    </div>
   </div>
   <div class="list" id="reserva-list"></div>
 </div>
@@ -471,6 +476,19 @@ textarea.field{resize:none;line-height:1.5;}
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeOverlay('overlay-date')">Cancelar</button>
       <button class="btn-confirm" onclick="handleDateEdit()">Salvar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Meta anual -->
+<div class="overlay" id="overlay-meta">
+  <div class="modal">
+    <div class="modal-title" id="meta-title">Meta anual</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">Saldo que você quer ter na reserva em dezembro. O app traça o caminho mês a mês até lá e compara com o que você realmente registrou.</p>
+    <input class="field" id="meta-valor" type="number" step="0.01" min="0" placeholder="Meta (R$)"/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeOverlay('overlay-meta')">Cancelar</button>
+      <button class="btn-confirm" onclick="handleMetaSubmit()">Salvar</button>
     </div>
   </div>
 </div>
@@ -1141,25 +1159,77 @@ function exportEntradaPDF(){
 }
 
 // ── Render reserva ───────────────────────────────────────────────────────────
+let reservaYear=new Date().getFullYear();
+// Não navega para antes do ano atual (ou do primeiro ano que já tenha saldo registrado)
+function reservaMinYear(){const cur=new Date().getFullYear();const ys=reservaData.map(r=>r.ano);return ys.length?Math.min(cur,...ys):cur;}
+function changeReservaYear(d){
+  if(reservaYear+d<reservaMinYear())return;
+  reservaYear+=d;renderReserva();
+}
+
 function renderReserva(){
-  let html='';
-  if(!reservaData.length){html=`<div class="empty"><div class="empty-icon">💰</div>Nenhum saldo registrado.<br><br>Toque em + Registrar para começar.</div>`;}
-  else{
-    const sorted=[...reservaData].sort((a,b)=>b.ano-a.ano||b.mes-a.mes);
+  document.getElementById('reserva-year-name').textContent=reservaYear;
+  document.getElementById('reserva-prev').disabled=reservaYear<=reservaMinYear();
+  // mes===0 guarda a meta anual do ano; saldos reais têm mes 1..12
+  const real=reservaData.filter(r=>r.mes>=1).sort((a,b)=>a.ano-b.ano||a.mes-b.mes);
+  const metaRow=reservaData.find(r=>r.ano===reservaYear&&r.mes===0);
+  const meta=metaRow?Number(metaRow.saldo):null;
+  const yearRows=real.filter(r=>r.ano===reservaYear);
+  // Ponto de partida: último saldo do ano anterior; sem ele, o primeiro saldo do ano
+  const prevYearRows=real.filter(r=>r.ano===reservaYear-1);
+  let base=null;
+  if(prevYearRows.length){const l=prevYearRows[prevYearRows.length-1];base={saldo:Number(l.saldo),idx:l.mes-12};}
+  else if(yearRows.length){base={saldo:Number(yearRows[0].saldo),idx:yearRows[0].mes};}
+  // Previsto: linha reta do ponto de partida até a meta em dezembro
+  const expected=m=>(meta!==null&&base&&base.idx<12)?base.saldo+(meta-base.saldo)*(m-base.idx)/(12-base.idx):null;
+  const kv=(l,v,c)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:var(--muted)">${l}</span><span style="font-weight:600;${c?'color:'+c:''}">${v}</span></div>`;
+
+  let detail='';
+  if(meta===null){
+    detail=`<div style="font-size:12px;color:var(--muted);line-height:1.5">Defina uma meta anual (saldo-alvo para dezembro) no ✏️ para ver a análise do ano.</div>`;
+  } else if(!yearRows.length){
+    detail=`<div style="font-size:12px;color:var(--muted);line-height:1.5">Registre um saldo de ${reservaYear} para ver a análise.</div>`;
+  } else {
+    const last=yearRows[yearRows.length-1];
+    const atual=Number(last.saldo);
+    const pctMeta=meta?atual/meta*100:0;
+    const falta=meta-atual;
+    const exp=expected(last.mes);
+    const gap=exp!==null?atual-exp:null;
+    const restantes=12-last.mes;
+    detail=`<div style="height:6px;background:#2a2a35;border-radius:99px;overflow:hidden;"><div style="height:100%;width:${Math.max(0,Math.min(100,pctMeta))}%;background:#a78bfa;"></div></div>`
+      +kv(`Saldo em ${MONTHS[last.mes-1]}`,fmt(atual))
+      +kv('% da meta',pctMeta.toFixed(1)+'%')
+      +kv(falta>0?'Falta para a meta':'Meta',falta>0?fmt(falta):'✅ atingida'+(falta<0?' (+'+fmt(-falta)+')':''),falta>0?'':'#4ade80')
+      +(exp!==null?kv(`Previsto em ${MONTHS[last.mes-1]}`,fmt(exp))+kv('Em relação ao previsto',(gap>=0?'↑ ':'↓ ')+fmt(Math.abs(gap))+(exp?` (${Math.abs(gap/exp*100).toFixed(1)}%)`:'')+(gap>=0?' acima':' abaixo'),gap>=0?'#4ade80':'#f87171'):'')
+      +(restantes>0&&falta>0?kv(`Ritmo necessário (${restantes} ${restantes===1?'mês':'meses'})`,fmt(falta/restantes)+'/mês'):'');
+  }
+  let html=`<div class="total-card" style="background:#a78bfa18;border:1px solid #a78bfa40;flex-direction:column;align-items:stretch;gap:8px;">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div class="total-card-label">🎯 Meta ${reservaYear}</div>
+      <div style="display:flex;align-items:center;gap:6px;"><div class="total-card-val" style="color:#a78bfa">${meta!==null?fmt(meta):'—'}</div><button class="action-btn" onclick="openMetaForm()">✏️</button></div>
+    </div>${detail}</div>`;
+
+  if(!yearRows.length){
+    html+=`<div class="empty"><div class="empty-icon">💰</div>Nenhum saldo registrado em ${reservaYear}.<br><br>Toque em + Registrar para começar.</div>`;
+  } else {
     html+=`<div class="day-group">`;
-    sorted.forEach((r,i)=>{
-      const prev=sorted[i+1];
-      const diff=prev?r.saldo-prev.saldo:null;
-      const pct=prev&&prev.saldo?((r.saldo-prev.saldo)/prev.saldo*100):null;
+    [...yearRows].reverse().forEach(r=>{
+      const prev=real[real.indexOf(r)-1];
+      const diff=prev?Number(r.saldo)-Number(prev.saldo):null;
+      const pct=prev&&Number(prev.saldo)?(diff/Number(prev.saldo)*100):null;
       const color=diff===null?'#888':diff>=0?'#4ade80':'#f87171';
       const arrow=diff===null?'':diff>=0?'↑':'↓';
+      const e=expected(r.mes);
+      const g=e!==null?Number(r.saldo)-e:null;
       html+=`<div class="reserva-row">
         <div class="reserva-info">
           <div class="reserva-month">💰 ${MONTHS[r.mes-1]} ${r.ano}</div>
-          ${diff!==null?`<div class="reserva-diff" style="color:${color}">${arrow} ${fmt(Math.abs(diff))} (${Math.abs(pct).toFixed(1)}%)</div>`:''}
+          ${diff!==null?`<div class="reserva-diff" style="color:${color}">${arrow} ${fmt(Math.abs(diff))} (${Math.abs(pct).toFixed(1)}%) vs mês anterior</div>`:''}
+          ${(g!==null&&base.idx!==r.mes)?`<div class="reserva-diff" style="color:${g>=0?'#4ade80':'#f87171'}">🎯 previsto ${fmt(e)} · ${g>=0?'↑ '+fmt(g)+' acima':'↓ '+fmt(-g)+' abaixo'}</div>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
-          <div class="reserva-val">${fmt(r.saldo)}</div>
+          <div class="reserva-val">${fmt(Number(r.saldo))}</div>
           <button class="action-btn" onclick="openReservaForm('${r.id}','${r.ano}','${r.mes}','${r.saldo}')">✏️</button>
           <button class="action-btn" onclick="handleDeleteReserva('${r.id}')">🗑️</button>
         </div>
@@ -1709,12 +1779,26 @@ function openReservaForm(id=null,ano=null,mes=null,saldo=null){
   document.getElementById('rv-saldo').value=saldo||'';
   openOverlay('overlay-reserva');
 }
+function openMetaForm(){
+  const m=reservaData.find(r=>r.ano===reservaYear&&r.mes===0);
+  document.getElementById('meta-title').textContent=`Meta ${reservaYear}`;
+  document.getElementById('meta-valor').value=m?m.saldo:'';
+  openOverlay('overlay-meta');
+}
+async function handleMetaSubmit(){
+  const v=parseFloat(document.getElementById('meta-valor').value);
+  if(!v)return;
+  const m=reservaData.find(r=>r.ano===reservaYear&&r.mes===0);
+  await saveReserva(reservaYear,0,v,m?m.id:null);
+  await loadReserva();closeOverlay('overlay-meta');renderReserva();
+}
 async function handleReservaSubmit(){
   const mv=document.getElementById('rv-month').value;
   const saldo=parseFloat(document.getElementById('rv-saldo').value);
   if(!mv||!saldo)return;
   const [ano,mes]=mv.split('-').map(Number);
   await saveReserva(ano,mes,saldo,editReservaId);
+  reservaYear=ano;
   await loadReserva();closeOverlay('overlay-reserva');renderReserva();
 }
 async function handleDeleteReserva(id){
