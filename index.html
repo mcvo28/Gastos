@@ -484,7 +484,7 @@ textarea.field{resize:none;line-height:1.5;}
 <div class="overlay" id="overlay-meta">
   <div class="modal">
     <div class="modal-title" id="meta-title">Meta anual</div>
-    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">Saldo que você quer ter na reserva em dezembro. O app traça o caminho mês a mês até lá e compara com o que você realmente registrou.</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">Saldo que você quer ter na reserva em dezembro.</p>
     <input class="field" id="meta-valor" type="number" step="0.01" min="0" placeholder="Meta (R$)"/>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeOverlay('overlay-meta')">Cancelar</button>
@@ -1175,34 +1175,22 @@ function renderReserva(){
   const metaRow=reservaData.find(r=>r.ano===reservaYear&&r.mes===0);
   const meta=metaRow?Number(metaRow.saldo):null;
   const yearRows=real.filter(r=>r.ano===reservaYear);
-  // Ponto de partida: último saldo do ano anterior; sem ele, o primeiro saldo do ano
-  const prevYearRows=real.filter(r=>r.ano===reservaYear-1);
-  let base=null;
-  if(prevYearRows.length){const l=prevYearRows[prevYearRows.length-1];base={saldo:Number(l.saldo),idx:l.mes-12};}
-  else if(yearRows.length){base={saldo:Number(yearRows[0].saldo),idx:yearRows[0].mes};}
-  // Previsto: linha reta do ponto de partida até a meta em dezembro
-  const expected=m=>(meta!==null&&base&&base.idx<12)?base.saldo+(meta-base.saldo)*(m-base.idx)/(12-base.idx):null;
   const kv=(l,v,c)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:var(--muted)">${l}</span><span style="font-weight:600;${c?'color:'+c:''}">${v}</span></div>`;
 
   let detail='';
   if(meta===null){
-    detail=`<div style="font-size:12px;color:var(--muted);line-height:1.5">Defina uma meta anual (saldo-alvo para dezembro) no ✏️ para ver a análise do ano.</div>`;
+    detail=`<div style="font-size:12px;color:var(--muted);line-height:1.5">Defina a meta anual no ✏️ para acompanhar o ano.</div>`;
   } else if(!yearRows.length){
-    detail=`<div style="font-size:12px;color:var(--muted);line-height:1.5">Registre um saldo de ${reservaYear} para ver a análise.</div>`;
+    detail=`<div style="font-size:12px;color:var(--muted);line-height:1.5">Registre um saldo de ${reservaYear} para acompanhar a meta.</div>`;
   } else {
     const last=yearRows[yearRows.length-1];
     const atual=Number(last.saldo);
-    const pctMeta=meta?atual/meta*100:0;
+    const pctMeta=atual/meta*100;
     const falta=meta-atual;
-    const exp=expected(last.mes);
-    const gap=exp!==null?atual-exp:null;
-    const restantes=12-last.mes;
     detail=`<div style="height:6px;background:#2a2a35;border-radius:99px;overflow:hidden;"><div style="height:100%;width:${Math.max(0,Math.min(100,pctMeta))}%;background:#a78bfa;"></div></div>`
       +kv(`Saldo em ${MONTHS[last.mes-1]}`,fmt(atual))
       +kv('% da meta',pctMeta.toFixed(1)+'%')
-      +kv(falta>0?'Falta para a meta':'Meta',falta>0?fmt(falta):'✅ atingida'+(falta<0?' (+'+fmt(-falta)+')':''),falta>0?'':'#4ade80')
-      +(exp!==null?kv(`Previsto em ${MONTHS[last.mes-1]}`,fmt(exp))+kv('Em relação ao previsto',(gap>=0?'↑ ':'↓ ')+fmt(Math.abs(gap))+(exp?` (${Math.abs(gap/exp*100).toFixed(1)}%)`:'')+(gap>=0?' acima':' abaixo'),gap>=0?'#4ade80':'#f87171'):'')
-      +(restantes>0&&falta>0?kv(`Ritmo necessário (${restantes} ${restantes===1?'mês':'meses'})`,fmt(falta/restantes)+'/mês'):'');
+      +kv(falta>0?'Falta para a meta':'Meta',falta>0?fmt(falta):'✅ atingida'+(falta<0?' (+'+fmt(-falta)+')':''),falta>0?'':'#4ade80');
   }
   let html=`<div class="total-card" style="background:#a78bfa18;border:1px solid #a78bfa40;flex-direction:column;align-items:stretch;gap:8px;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
@@ -1220,13 +1208,10 @@ function renderReserva(){
       const pct=prev&&Number(prev.saldo)?(diff/Number(prev.saldo)*100):null;
       const color=diff===null?'#888':diff>=0?'#4ade80':'#f87171';
       const arrow=diff===null?'':diff>=0?'↑':'↓';
-      const e=expected(r.mes);
-      const g=e!==null?Number(r.saldo)-e:null;
       html+=`<div class="reserva-row">
         <div class="reserva-info">
           <div class="reserva-month">💰 ${MONTHS[r.mes-1]} ${r.ano}</div>
-          ${diff!==null?`<div class="reserva-diff" style="color:${color}">${arrow} ${fmt(Math.abs(diff))} (${Math.abs(pct).toFixed(1)}%) vs mês anterior</div>`:''}
-          ${(g!==null&&base.idx!==r.mes)?`<div class="reserva-diff" style="color:${g>=0?'#4ade80':'#f87171'}">🎯 previsto ${fmt(e)} · ${g>=0?'↑ '+fmt(g)+' acima':'↓ '+fmt(-g)+' abaixo'}</div>`:''}
+          ${diff!==null?`<div class="reserva-diff" style="color:${color}">${arrow} ${fmt(Math.abs(diff))} (${Math.abs(pct).toFixed(1)}%)</div>`:''}
         </div>
         <div style="display:flex;align-items:center;gap:6px;">
           <div class="reserva-val">${fmt(Number(r.saldo))}</div>
