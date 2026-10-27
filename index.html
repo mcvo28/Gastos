@@ -480,6 +480,21 @@ textarea.field{resize:none;line-height:1.5;}
   </div>
 </div>
 
+<!-- Valores imobilizados -->
+<div class="overlay" id="overlay-imob">
+  <div class="modal">
+    <div class="modal-title">🔒 Valores imobilizados</div>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:10px;line-height:1.6">Valores que estão dentro do saldo da reserva mas não estão disponíveis (ex: caução de aluguel). Eles são descontados do saldo disponível.</p>
+    <div id="imob-list" style="margin-bottom:10px;"></div>
+    <input class="field" id="imob-nome" placeholder="Descrição (ex: Caução aluguel SP)"/>
+    <input class="field" id="imob-valor" type="number" step="0.01" min="0" placeholder="Valor (R$)"/>
+    <div class="modal-btns">
+      <button class="btn-cancel" onclick="closeOverlay('overlay-imob')">Fechar</button>
+      <button class="btn-confirm" id="imob-save-btn" onclick="handleImobSave()">Adicionar</button>
+    </div>
+  </div>
+</div>
+
 <!-- Meta anual -->
 <div class="overlay" id="overlay-meta">
   <div class="modal">
@@ -615,6 +630,7 @@ async function syncToCloud(){
       {id:'dates',tipo:'dates',dados:dateOverrides},
       {id:'pag_config',tipo:'pag_config',dados:pagamentosConfig},
       {id:'pag_status',tipo:'pag_status',dados:pagamentosStatus},
+      {id:'imob',tipo:'imob',dados:imobData},
     ];
     const res=await fetch(`${SB_URL}/rest/v1/gastos`,{method:'POST',headers,body:JSON.stringify(rows)});
     if(!res.ok)throw new Error();
@@ -643,11 +659,13 @@ async function loadFromCloud(){
     if(pcfg&&Array.isArray(pcfg)&&pcfg.length)pagamentosConfig=pcfg;
     const pst=get('pag_status',null);
     if(pst&&typeof pst==='object')pagamentosStatus=pst;
+    const im=get('imob',null);
+    if(Array.isArray(im))imobData=im;
     _save('gastos-alim-v1',alimExpenses);_save('gastos-transp-v1',transpExpenses);
     _save('gastos-transp-rafa-v1',transpRafaExpenses);_save('gastos-farm-v1',farmaciaExpenses);
     _save('gastos-fixos-v1',fixosData);_save('gastos-parcelas-v2',parcelasData);
     _save('gastos-entradas-v1',entradasData);_save('gastos-dates-v1',dateOverrides);
-    _save('gastos-pag-config-v1',pagamentosConfig);_save('gastos-pag-status-v1',pagamentosStatus);
+    _save('gastos-pag-config-v1',pagamentosConfig);_save('gastos-pag-status-v1',pagamentosStatus);_save('gastos-imob-v1',imobData);
     FATURAS=generateFaturas();
     return true;
   }catch{return false;}
@@ -687,6 +705,7 @@ const PAGAMENTOS_SEED=[
 ];
 let pagamentosConfig=load('gastos-pag-config-v1',PAGAMENTOS_SEED);
 let pagamentosStatus=load('gastos-pag-status-v1',{});
+let imobData=load('gastos-imob-v1',[]);
 
 let currentPerson='matheus';
 let currentTab='alimentacao';
@@ -1167,6 +1186,46 @@ function changeReservaYear(d){
   reservaYear+=d;renderReserva();
 }
 
+// ── Valores imobilizados (ex: caução de aluguel) ─────────────────────────────
+let editImobId=null;
+function imobTotal(){return imobData.reduce((s,i)=>s+(Number(i.valor)||0),0);}
+function renderImobList(){
+  const el=document.getElementById('imob-list');
+  if(!imobData.length){el.innerHTML='<div style="font-size:12px;color:#555;padding:6px 0">Nenhum valor cadastrado.</div>';return;}
+  el.innerHTML=`<div class="day-group" style="margin-bottom:0">`
+    +imobData.map(i=>`<div class="parc-row"><div class="parc-info"><div class="parc-name">🔒 ${i.nome}</div></div><div class="parc-amount" style="color:#f59e0b">${fmt(Number(i.valor))}</div><button class="action-btn" onclick="editImob('${i.id}')">✏️</button><button class="action-btn" onclick="deleteImob('${i.id}')">🗑️</button></div>`).join('')
+    +`<div style="display:flex;justify-content:space-between;padding:9px 0;font-size:12px;border-top:1px solid #2a2a35;"><span style="color:var(--muted)">Total imobilizado</span><strong>${fmt(imobTotal())}</strong></div></div>`;
+}
+function resetImobForm(){
+  editImobId=null;
+  document.getElementById('imob-nome').value='';
+  document.getElementById('imob-valor').value='';
+  document.getElementById('imob-save-btn').textContent='Adicionar';
+}
+function openImobModal(){resetImobForm();renderImobList();openOverlay('overlay-imob');}
+function editImob(id){
+  const i=imobData.find(x=>x.id===id);if(!i)return;
+  editImobId=id;
+  document.getElementById('imob-nome').value=i.nome;
+  document.getElementById('imob-valor').value=i.valor;
+  document.getElementById('imob-save-btn').textContent='Salvar';
+}
+function handleImobSave(){
+  const nome=document.getElementById('imob-nome').value.trim();
+  const valor=parseFloat(document.getElementById('imob-valor').value);
+  if(!nome||!valor)return;
+  const entry={id:editImobId||String(Date.now()),nome,valor};
+  if(editImobId)imobData=imobData.map(i=>i.id===editImobId?entry:i);else imobData.push(entry);
+  saveAndSync('gastos-imob-v1',imobData);
+  resetImobForm();renderImobList();renderReserva();
+}
+function deleteImob(id){
+  imobData=imobData.filter(i=>i.id!==id);
+  saveAndSync('gastos-imob-v1',imobData);
+  if(editImobId===id)resetImobForm();
+  renderImobList();renderReserva();
+}
+
 function renderReserva(){
   document.getElementById('reserva-year-name').textContent=reservaYear;
   document.getElementById('reserva-prev').disabled=reservaYear<=reservaMinYear();
@@ -1175,24 +1234,39 @@ function renderReserva(){
   const metaRow=reservaData.find(r=>r.ano===reservaYear&&r.mes===0);
   const meta=metaRow?Number(metaRow.saldo):null;
   const yearRows=real.filter(r=>r.ano===reservaYear);
+  const last=yearRows.length?yearRows[yearRows.length-1]:null;
+  const imob=imobTotal();
+  const disp=last?Number(last.saldo)-imob:null;
   const kv=(l,v,c)=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:3px 0;"><span style="color:var(--muted)">${l}</span><span style="font-weight:600;${c?'color:'+c:''}">${v}</span></div>`;
 
+  // Visão geral: total, imobilizado e disponível
+  let html=`<div class="total-card" style="background:#4ade8010;border:1px solid #4ade8030;flex-direction:column;align-items:stretch;gap:2px;">
+    ${kv(last?`Saldo total · ${MONTHS[last.mes-1]}`:'Saldo total',last?fmt(Number(last.saldo)):'—')}
+    <div style="display:flex;justify-content:space-between;align-items:center;font-size:12px;padding:3px 0;">
+      <span style="color:var(--muted)">🔒 Imobilizado</span>
+      <span style="display:flex;align-items:center;gap:6px;"><span style="font-weight:600;color:#f59e0b">${imob?'− '+fmt(imob):'—'}</span><button class="action-btn" onclick="openImobModal()">✏️</button></span>
+    </div>
+    <div style="border-top:1px solid #2a2a35;margin:6px 0 4px"></div>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;">
+      <span class="total-card-label">✅ Disponível</span>
+      <span class="total-card-val" style="color:#4ade80">${disp!==null?fmt(disp):'—'}</span>
+    </div></div>`;
+
+  // Meta anual (acompanhada pelo saldo disponível)
   let detail='';
   if(meta===null){
     detail=`<div style="font-size:12px;color:var(--muted);line-height:1.5">Defina a meta anual no ✏️ para acompanhar o ano.</div>`;
-  } else if(!yearRows.length){
+  } else if(!last){
     detail=`<div style="font-size:12px;color:var(--muted);line-height:1.5">Registre um saldo de ${reservaYear} para acompanhar a meta.</div>`;
   } else {
-    const last=yearRows[yearRows.length-1];
-    const atual=Number(last.saldo);
-    const pctMeta=atual/meta*100;
-    const falta=meta-atual;
+    const pctMeta=disp/meta*100;
+    const falta=meta-disp;
     detail=`<div style="height:6px;background:#2a2a35;border-radius:99px;overflow:hidden;"><div style="height:100%;width:${Math.max(0,Math.min(100,pctMeta))}%;background:#a78bfa;"></div></div>`
-      +kv(`Saldo em ${MONTHS[last.mes-1]}`,fmt(atual))
+      +kv(`Disponível em ${MONTHS[last.mes-1]}`,fmt(disp))
       +kv('% da meta',pctMeta.toFixed(1)+'%')
       +kv(falta>0?'Falta para a meta':'Meta',falta>0?fmt(falta):'✅ atingida'+(falta<0?' (+'+fmt(-falta)+')':''),falta>0?'':'#4ade80');
   }
-  let html=`<div class="total-card" style="background:#a78bfa18;border:1px solid #a78bfa40;flex-direction:column;align-items:stretch;gap:8px;">
+  html+=`<div class="total-card" style="background:#a78bfa18;border:1px solid #a78bfa40;flex-direction:column;align-items:stretch;gap:8px;">
     <div style="display:flex;justify-content:space-between;align-items:center;">
       <div class="total-card-label">🎯 Meta ${reservaYear}</div>
       <div style="display:flex;align-items:center;gap:6px;"><div class="total-card-val" style="color:#a78bfa">${meta!==null?fmt(meta):'—'}</div><button class="action-btn" onclick="openMetaForm()">✏️</button></div>
@@ -1800,7 +1874,7 @@ function openBackup(mode){
   if(mode==='export'){
     document.getElementById('backup-title').textContent='Exportar backup';
     document.getElementById('backup-desc').textContent='Copie e cole nas Notas.';
-    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,farm:farmaciaExpenses,fixos:fixosData,parcelas:parcelasData,entradas:entradasData,dates:dateOverrides,pagConfig:pagamentosConfig,pagStatus:pagamentosStatus});
+    ta.value=JSON.stringify({alim:alimExpenses,transp:transpExpenses,transpRafa:transpRafaExpenses,farm:farmaciaExpenses,fixos:fixosData,parcelas:parcelasData,entradas:entradasData,dates:dateOverrides,pagConfig:pagamentosConfig,pagStatus:pagamentosStatus,imob:imobData});
     ta.readOnly=true;document.getElementById('backup-action-btn').textContent='Copiar';
   } else{
     document.getElementById('backup-title').textContent='Importar backup';
@@ -1831,11 +1905,12 @@ function handleBackupAction(){
       if(data.dates)dateOverrides=data.dates;
       if(data.pagConfig&&Array.isArray(data.pagConfig)&&data.pagConfig.length)pagamentosConfig=data.pagConfig;
       if(data.pagStatus)pagamentosStatus=data.pagStatus;
+      if(Array.isArray(data.imob))imobData=data.imob;
       saveAndSync('gastos-alim-v1',alimExpenses);saveAndSync('gastos-transp-v1',transpExpenses);
       saveAndSync('gastos-transp-rafa-v1',transpRafaExpenses);saveAndSync('gastos-farm-v1',farmaciaExpenses);
       saveAndSync('gastos-fixos-v1',fixosData);saveAndSync('gastos-parcelas-v2',parcelasData);
       saveAndSync('gastos-entradas-v1',entradasData);saveAndSync('gastos-dates-v1',dateOverrides);
-      saveAndSync('gastos-pag-config-v1',pagamentosConfig);saveAndSync('gastos-pag-status-v1',pagamentosStatus);
+      saveAndSync('gastos-pag-config-v1',pagamentosConfig);saveAndSync('gastos-pag-status-v1',pagamentosStatus);saveAndSync('gastos-imob-v1',imobData);
       FATURAS=generateFaturas();errEl.style.display='none';
       closeOverlay('overlay-backup');renderSection(currentTab);
     }catch{errEl.textContent='Texto inválido.';errEl.style.display='block';}
