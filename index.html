@@ -266,6 +266,11 @@ textarea.field{resize:none;line-height:1.5;}
       <div><div class="title-main">Gastos</div><div class="title-sub">Fixos mensais</div></div>
       <div class="btn-row"><button class="pill btn-new" onclick="openFixoForm()">+ Novo</button></div>
     </div>
+    <div class="fatura-nav" style="margin-bottom:0">
+      <button class="nav-btn" id="fix-prev" onclick="changeFixMonth(-1)">‹</button>
+      <div class="fatura-label"><div class="fatura-name" id="fix-month-name">—</div></div>
+      <button class="nav-btn" id="fix-next" onclick="changeFixMonth(1)">›</button>
+    </div>
   </div>
   <div class="list" id="fixos-list"></div>
 </div>
@@ -316,9 +321,10 @@ textarea.field{resize:none;line-height:1.5;}
       <div><div class="title-main">📅</div><div class="title-sub">Pagamentos</div></div>
       <div class="btn-row"><button class="pill btn-new" onclick="openPagamentoForm()">+ Novo</button></div>
     </div>
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-      <div id="pag-month-name" style="font-family:'Playfair Display',serif;font-size:15px;font-weight:700;"></div>
-      <div id="pag-progress" style="font-size:12px;color:var(--muted);"></div>
+    <div class="fatura-nav" style="margin-bottom:0">
+      <button class="nav-btn" id="pag-prev" onclick="changePagMonth(-1)">‹</button>
+      <div class="fatura-label"><div class="fatura-name" id="pag-month-name">—</div><div class="fatura-range" id="pag-progress"></div></div>
+      <button class="nav-btn" id="pag-next" onclick="changePagMonth(1)">›</button>
     </div>
   </div>
   <div class="list" id="pagamentos-list"></div>
@@ -544,6 +550,8 @@ textarea.field{resize:none;line-height:1.5;}
     <input class="field" id="pag-nome" placeholder="Descrição (ex: Nubank)"/>
     <label class="field-label">Dia do mês</label>
     <input class="field" id="pag-dia" type="number" min="1" max="31" placeholder="Dia (ex: 15)"/>
+    <label class="field-label">Vale a partir de (mês)</label>
+    <input class="field" id="pag-inicio" type="month" style="-webkit-appearance:none;color-scheme:dark;"/>
     <div class="modal-btns">
       <button class="btn-cancel" onclick="closeOverlay('overlay-pagamento')">Cancelar</button>
       <button class="btn-confirm" onclick="handlePagamentoSubmit()">Salvar</button>
@@ -900,15 +908,38 @@ function renderFarmacia(){
 }
 
 // ── Render pagamentos ─────────────────────────────────────────────────────────
+// ── Histórico mensal (Pagamentos e Fixos) ─────────────────────────────────────
+const histNow=new Date();
+let pagMonth={year:histNow.getFullYear(),month:histNow.getMonth()+1};
+let fixMonth={year:histNow.getFullYear(),month:histNow.getMonth()+1};
+function monthStr(y,m){return `${y}-${String(m).padStart(2,'0')}`;}
+function shiftMonth(o,d){let m=o.month+d,y=o.year;if(m>12){m=1;y++;}if(m<1){m=12;y--;}return{year:y,month:m};}
+// Mês de criação a partir do id (timestamp), quando existir
+function idMonth(id){const n=parseInt(String(id).replace(/\D/g,''));if(!n||n<1e12)return null;const d=new Date(n);return monthStr(d.getFullYear(),d.getMonth()+1);}
+
+// Pagamentos: itens antigos sem "inicio" valem desde out/2026, quando a aba passou a ser usada
+function pagInicio(p){return p.inicio||idMonth(p.id)||'2026-10';}
+function pagAtivo(p,ym){return ym>=pagInicio(p)&&(!p.fim||ym<=p.fim);}
+function pagMinMonth(){return pagamentosConfig.length?pagamentosConfig.map(pagInicio).sort()[0]:monthStr(histNow.getFullYear(),histNow.getMonth()+1);}
+function changePagMonth(d){
+  const n=shiftMonth(pagMonth,d);
+  if(monthStr(n.year,n.month)<pagMinMonth())return;
+  pagMonth=n;renderPagamentos();
+}
+
 function renderPagamentos(){
-  const now=new Date();
-  const y=now.getFullYear(),m=now.getMonth()+1;
-  const monthKey=`${y}-${String(m).padStart(2,'0')}`;
+  const y=pagMonth.year,m=pagMonth.month;
+  const monthKey=monthStr(y,m);
   document.getElementById('pag-month-name').textContent=`${MONTHS[m-1]} ${y}`;
-  const sorted=[...pagamentosConfig].sort((a,b)=>a.dia-b.dia);
+  document.getElementById('pag-prev').disabled=monthKey<=pagMinMonth();
+  const sorted=pagamentosConfig.filter(p=>pagAtivo(p,monthKey)).sort((a,b)=>a.dia-b.dia);
   const total=sorted.length;
   const pagos=sorted.filter(p=>pagamentosStatus[`${monthKey}-${p.id}`]).length;
-  document.getElementById('pag-progress').textContent=`${pagos}/${total} pagos`;
+  document.getElementById('pag-progress').textContent=total?`${pagos}/${total} pagos`:'';
+  if(!total){
+    document.getElementById('pagamentos-list').innerHTML=`<div class="empty"><div class="empty-icon">📅</div>Nenhum pagamento em ${MONTHS[m-1]}.</div>`;
+    return;
+  }
   const byDia={};
   sorted.forEach(p=>{if(!byDia[p.dia])byDia[p.dia]=[];byDia[p.dia].push(p);});
   let html=`<div class="total-card" style="background:${pagos===total?'#22c55e18':'#f59e0b18'};border:1px solid ${pagos===total?'#22c55e40':'#f59e0b40'}">
@@ -954,30 +985,56 @@ function openPagamentoForm(id=null){
   document.getElementById('pag-form-title').textContent=p?'Editar pagamento':'Novo pagamento';
   document.getElementById('pag-nome').value=p?p.nome:'';
   document.getElementById('pag-dia').value=p?p.dia:'';
+  document.getElementById('pag-inicio').value=p?pagInicio(p):monthStr(pagMonth.year,pagMonth.month);
   openOverlay('overlay-pagamento');
 }
 function handlePagamentoSubmit(){
   const nome=document.getElementById('pag-nome').value.trim();
   const dia=parseInt(document.getElementById('pag-dia').value);
   if(!nome||!dia)return;
-  const entry={id:editPagamentoId||('pag'+Date.now()),nome,dia};
+  const old=editPagamentoId?pagamentosConfig.find(x=>x.id===editPagamentoId):null;
+  const inicio=document.getElementById('pag-inicio').value||monthStr(pagMonth.year,pagMonth.month);
+  const entry={id:editPagamentoId||('pag'+Date.now()),nome,dia,inicio};
+  if(old&&old.fim)entry.fim=old.fim;
   if(editPagamentoId)pagamentosConfig=pagamentosConfig.map(p=>p.id===editPagamentoId?entry:p);
   else pagamentosConfig.push(entry);
   saveAndSync('gastos-pag-config-v1',pagamentosConfig);
   closeOverlay('overlay-pagamento');renderPagamentos();
 }
+// Encerra a partir do mês exibido: os meses anteriores (e o que foi marcado como pago) continuam salvos
 function deletePagamento(id){
-  pagamentosConfig=pagamentosConfig.filter(p=>p.id!==id);
+  const p=pagamentosConfig.find(x=>x.id===id);if(!p)return;
+  const cur=monthStr(pagMonth.year,pagMonth.month);
+  const mes=MONTHS[pagMonth.month-1];
+  if(!confirm(`Encerrar "${p.nome}" a partir de ${mes}?\n\nOs meses anteriores continuam salvos; de ${mes} em diante ele deixa de aparecer.`))return;
+  if(pagInicio(p)>=cur){
+    pagamentosConfig=pagamentosConfig.filter(x=>x.id!==id);
+    Object.keys(pagamentosStatus).forEach(k=>{if(k.slice(8)===id)delete pagamentosStatus[k];});
+  } else {
+    p.fim=prevMonthStr(cur);
+  }
   saveAndSync('gastos-pag-config-v1',pagamentosConfig);
+  saveAndSync('gastos-pag-status-v1',pagamentosStatus);
   renderPagamentos();
 }
 
 // ── Render fixos ─────────────────────────────────────────────────────────────
+function fixMinMonth(){
+  const arr=fixosData.map(f=>f.startYear?monthStr(f.startYear,f.startMonth):(idMonth(f.id)||monthStr(histNow.getFullYear(),histNow.getMonth()+1)));
+  return arr.length?arr.sort()[0]:monthStr(histNow.getFullYear(),histNow.getMonth()+1);
+}
+function changeFixMonth(d){
+  const n=shiftMonth(fixMonth,d);
+  if(monthStr(n.year,n.month)<fixMinMonth())return;
+  fixMonth=n;renderFixos();
+}
 function renderFixos(){
-  const now=new Date();const cy=now.getFullYear(),cm=now.getMonth()+1;
+  const cy=fixMonth.year,cm=fixMonth.month;
+  document.getElementById('fix-month-name').textContent=`${MONTHS[cm-1]} ${cy}`;
+  document.getElementById('fix-prev').disabled=monthStr(cy,cm)<=fixMinMonth();
   const ativos=fixosData.filter(f=>fixoAtivo(f,cy,cm));
   const total=ativos.reduce((s,f)=>s+f.amount,0);
-  let html=`<div class="total-card" style="background:#38bdf818;border:1px solid #38bdf840"><div><div class="total-card-label">Total fixo mensal (mês atual)</div></div><div class="total-card-val" style="color:#38bdf8">${fmt(total)}</div></div>`;
+  let html=`<div class="total-card" style="background:#38bdf818;border:1px solid #38bdf840"><div><div class="total-card-label">Total fixo em ${MONTHS[cm-1]}</div></div><div class="total-card-val" style="color:#38bdf8">${fmt(total)}</div></div>`;
   if(!fixosData.length){html+=`<div class="empty"><div class="empty-icon">📌</div>Nenhum gasto fixo cadastrado.</div>`;}
   else{
     html+=`<div class="day-group">`;
@@ -1526,7 +1583,21 @@ function handleFixoSubmit(){
   if(editFixoId)fixosData=fixosData.map(f=>f.id===editFixoId?entry:f);else fixosData.push(entry);
   saveAndSync('gastos-fixos-v1',fixosData);closeOverlay('overlay-fixo');renderFixos();
 }
-function deleteFixo(id){fixosData=fixosData.filter(f=>f.id!==id);saveAndSync('gastos-fixos-v1',fixosData);renderFixos();}
+// Encerra a partir do mês exibido: os meses anteriores continuam com o valor que tinham
+function deleteFixo(id){
+  const f=fixosData.find(x=>x.id===id);if(!f)return;
+  const cur=monthStr(fixMonth.year,fixMonth.month);
+  const mes=MONTHS[fixMonth.month-1];
+  if(!confirm(`Encerrar "${f.name}" a partir de ${mes}?\n\nOs meses anteriores continuam salvos; de ${mes} em diante ele deixa de contar.`))return;
+  const start=f.startYear?monthStr(f.startYear,f.startMonth):'0000-00';
+  if(start>=cur||cur<=fixMinMonth()){
+    fixosData=fixosData.filter(x=>x.id!==id);
+  } else {
+    const pm=prevMonthStr(cur);
+    f.endYear=parseInt(pm.slice(0,4));f.endMonth=parseInt(pm.slice(5,7));
+  }
+  saveAndSync('gastos-fixos-v1',fixosData);renderFixos();
+}
 
 // ── Parcela form ─────────────────────────────────────────────────────────────
 let editParcelaId=null;
