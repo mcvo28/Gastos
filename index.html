@@ -1638,6 +1638,34 @@ function entRef(e){
   const m=e.parcelaRefMonth||parseInt(d.slice(5,7));
   return{y,m,str:`${y}-${pad2(m)}`};
 }
+function nextMonthStr(m){let y=parseInt(m.slice(0,4)),mo=parseInt(m.slice(5,7))+1;if(mo>12){mo=1;y++;}return `${y}-${pad2(mo)}`;}
+function entPaid(e){const rec=e.valorRecebido||0;return rec>0&&rec>=(e.valorEsperado||0);}
+// Data prevista da série no mês m (mesmo dia da entrada original; ajusta meses curtos)
+function entDate(tpl,m){
+  const day=parseInt((tpl.datePrevista||'').slice(8,10))||1;
+  const dim=new Date(parseInt(m.slice(0,4)),parseInt(m.slice(5,7)),0).getDate();
+  return `${m}-${pad2(Math.min(day,dim))}`;
+}
+// Registro real da série no mês m: a própria entrada (mês de origem) ou uma ocorrência já salva
+function entOccurrence(tpl,m){
+  if(entRef(tpl).str===m)return tpl;
+  return entradasData.find(x=>x.seriesParent===tpl.id&&(x.datePrevista||'').slice(0,7)===m)||null;
+}
+// Número da parcela em thisM. A cada mês avança 1, mas NÃO avança quando o mês anterior
+// tem registro já vencido que não foi pago por inteiro. Número digitado/salvo num mês vale.
+function entInstallment(tpl,thisM){
+  let m=entRef(tpl).str,num=tpl.parcelaAtual;
+  while(m<thisM){
+    const prev=entOccurrence(tpl,m);
+    const nextM=nextMonthStr(m);
+    const next=entOccurrence(tpl,nextM);
+    if(next&&next.parcelaAtual)num=next.parcelaAtual;
+    else if(!(prev&&!entPaid(prev)&&(prev.datePrevista||entDate(tpl,m))<today()))num+=1;
+    if(num>tpl.parcelaTotal)return null;
+    m=nextM;
+  }
+  return num;
+}
 // Does series template `tpl` have an occurrence in month thisM ('YYYY-MM')?
 function entProject(tpl,thisM){
   const tipo=entTipo(tpl);
@@ -1647,13 +1675,10 @@ function entProject(tpl,thisM){
   if(tpl.serieFim&&thisM>tpl.serieFim)return null;
   let cur=null;
   if(tipo==='parcelada'){
-    const ty=parseInt(thisM.slice(0,4)),tm=parseInt(thisM.slice(5,7));
-    cur=tpl.parcelaAtual+((ty-ref.y)*12+(tm-ref.m));
-    if(cur<1||cur>tpl.parcelaTotal)return null;
+    cur=entInstallment(tpl,thisM);
+    if(cur===null||cur<1||cur>tpl.parcelaTotal)return null;
   }
-  const day=parseInt((tpl.datePrevista||'').slice(8,10))||1;
-  const dim=new Date(parseInt(thisM.slice(0,4)),parseInt(thisM.slice(5,7)),0).getDate();
-  return{cur,date:`${thisM}-${pad2(Math.min(day,dim))}`,origin:ref.str===thisM};
+  return{cur,date:entDate(tpl,thisM),origin:ref.str===thisM};
 }
 // All entradas shown for a calendar month: real records + virtual projections
 function buildEntradasForMonth(thisM,cf){
@@ -1665,11 +1690,12 @@ function buildEntradasForMonth(thisM,cf){
       if((e.datePrevista||today()).slice(0,7)===thisM)out.push(e);
       return;
     }
-    const p=entProject(e,thisM);
-    if(!p)return;
-    if(p.origin){out.push(e);return;}
+    if(entRef(e).str===thisM){out.push(e);return;}
+    // ocorrência já salva para este mês vale sempre
     const child=entradasData.find(x=>x.seriesParent===e.id&&(x.datePrevista||'').slice(0,7)===thisM);
     if(child){out.push(child);return;}
+    const p=entProject(e,thisM);
+    if(!p)return;
     out.push({...e,id:`virtual_${e.id}_${thisM}`,datePrevista:p.date,parcelaAtual:p.cur,valorRecebido:0,dataRecebida:null,_virtual:true,_templateId:e.id});
   });
   // materialized children whose template no longer exists
